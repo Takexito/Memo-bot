@@ -11,12 +11,12 @@ import (
 )
 
 type GPTClassifier struct {
-	client       *openai.Client
-	model        string
-	maxTokens    int
-	temperature  float64
-	maxTags      int
-	logger       *zap.Logger
+	client      *openai.Client
+	model       string
+	maxTokens   int
+	temperature float64
+	maxTags     int
+	logger      *zap.Logger
 }
 
 func NewGPTClassifier(apiKey string, model string, maxTokens int, temperature float64, maxTags int, logger *zap.Logger) *GPTClassifier {
@@ -53,7 +53,7 @@ Content: %s`, c.maxTags, content)
 				},
 			},
 			MaxTokens:   c.maxTokens,
-			Temperature: c.temperature,
+			Temperature: float32(c.temperature),
 		},
 	)
 
@@ -67,8 +67,8 @@ Content: %s`, c.maxTags, content)
 	var tags []string
 	response := strings.TrimSpace(resp.Choices[0].Message.Content)
 	if err := json.Unmarshal([]byte(response), &tags); err != nil {
-		c.logger.Error("Failed to parse GPT response", 
-			zap.Error(err), 
+		c.logger.Error("Failed to parse GPT response",
+			zap.Error(err),
 			zap.String("response", response))
 		return c.fallbackClassification(content)
 	}
@@ -85,4 +85,4 @@ Content: %s`, c.maxTags, content)
 func (c *GPTClassifier) fallbackClassification(content string) []string {
 	simpleClassifier := NewSimpleClassifier(0.7, c.maxTags)
 	return simpleClassifier.ClassifyContent(content)
-} 
+}

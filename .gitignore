@@ -6,6 +6,7 @@
 *.dylib
 *.test
 *.out
+*.sum
 go.work
 
 # Output directories
