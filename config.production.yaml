@@ -1,13 +1,13 @@
 telegram:
-  token: ${TELEGRAM_TOKEN}
+  token: ""
 
 database:
-  host: ${PGHOST}
-  port: ${PGPORT}
-  user: ${PGUSER}
-  password: ${PGPASSWORD}
-  dbname: ${PGDATABASE}
-  sslmode: disable
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: ""
+  dbname: "memo"
+  sslmode: "disable"
   use_in_memory: false
 
 classifier:
@@ -15,7 +15,7 @@ classifier:
   max_tags: 5
 
 openai:
-  api_key: ${OPENAI_API_KEY}
+  api_key: ""
   model: "gpt-3.5-turbo"
   max_tokens: 150
   temperature: 0.7 
