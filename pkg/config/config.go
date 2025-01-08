@@ -1,6 +1,9 @@
 package config
 
 import (
+	"fmt"
+	"net/url"
+	"strings"
 	"github.com/spf13/viper"
 )
 
@@ -37,26 +40,76 @@ type OpenAIConfig struct {
 	Temperature float64 `mapstructure:"temperature"`
 }
 
+func parseDatabaseURL(dbURL string) (DatabaseConfig, error) {
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		return DatabaseConfig{}, err
+	}
+
+	password, _ := u.User.Password()
+	port := 5432 // default PostgreSQL port
+	if u.Port() != "" {
+		fmt.Sscanf(u.Port(), "%d", &port)
+	}
+
+	// Remove leading slash from path to get database name
+	dbName := strings.TrimPrefix(u.Path, "/")
+
+	return DatabaseConfig{
+		Host:     u.Hostname(),
+		Port:     port,
+		User:     u.User.Username(),
+		Password: password,
+		DBName:   dbName,
+		SSLMode:  "disable",
+	}, nil
+}
+
 func LoadConfig(path string) (*Config, error) {
-	viper.SetConfigFile(path)
-	viper.AutomaticEnv()
+	v := viper.New()
+	
+	// Set default values
+	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.user", "postgres")
+	v.SetDefault("database.sslmode", "disable")
+	v.SetDefault("database.use_in_memory", false)
+	v.SetDefault("classifier.min_confidence", 0.7)
+	v.SetDefault("classifier.max_tags", 5)
+	v.SetDefault("openai.model", "gpt-3.5-turbo")
+	v.SetDefault("openai.max_tokens", 150)
+	v.SetDefault("openai.temperature", 0.7)
 
-	// Map environment variables
-	viper.BindEnv("telegram.token", "TELEGRAM_TOKEN")
-	viper.BindEnv("database.host", "PGHOST")
-	viper.BindEnv("database.port", "PGPORT")
-	viper.BindEnv("database.user", "PGUSER")
-	viper.BindEnv("database.password", "PGPASSWORD")
-	viper.BindEnv("database.dbname", "PGDATABASE")
-	viper.BindEnv("openai.api_key", "OPENAI_API_KEY")
+	// Enable environment variable support
+	v.AutomaticEnv()
 
-	if err := viper.ReadInConfig(); err != nil {
+	// Read the config file
+	v.SetConfigFile(path)
+	if err := v.ReadInConfig(); err != nil {
 		return nil, err
 	}
 
 	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
+	if err := v.Unmarshal(&config); err != nil {
 		return nil, err
+	}
+
+	// Check for DATABASE_URL environment variable
+	if dbURL := v.GetString("DATABASE_URL"); dbURL != "" {
+		dbConfig, err := parseDatabaseURL(dbURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse DATABASE_URL: %v", err)
+		}
+		config.Database = dbConfig
+	}
+
+	// Get other environment variables
+	if token := v.GetString("TELEGRAM_TOKEN"); token != "" {
+		config.Telegram.Token = token
+	}
+
+	if apiKey := v.GetString("OPENAI_API_KEY"); apiKey != "" {
+		config.OpenAI.APIKey = apiKey
 	}
 
 	return &config, nil

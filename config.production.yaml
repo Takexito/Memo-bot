@@ -6,7 +6,7 @@ database:
   port: 5432
   user: "postgres"
   password: ""
-  dbname: "memo"
+  dbname: "postgres"
   sslmode: "disable"
   use_in_memory: false
 
