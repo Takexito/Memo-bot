@@ -5,20 +5,16 @@ WORKDIR /app
 # Install build dependencies
 RUN apk add --no-cache git
 
-# Copy module files
+# Copy only necessary files
 COPY go.mod go.sum ./
-
-# Download dependencies
-RUN go mod download
-
-# Copy source code
 COPY cmd/ cmd/
 COPY internal/ internal/
 COPY pkg/ pkg/
-COPY config.production.yaml config.yaml
+COPY config.production.yaml ./
 
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o memo-bot ./cmd/bot
+# Download dependencies and build
+RUN go mod download && \
+    CGO_ENABLED=0 GOOS=linux go build -o memo-bot ./cmd/bot
 
 # Final stage
 FROM alpine:latest
@@ -28,9 +24,9 @@ RUN apk add --no-cache postgresql-client
 
 WORKDIR /app
 
-# Copy wait-for script
+# Copy binary and config
 COPY --from=builder /app/memo-bot .
-COPY config.production.yaml config.yaml
+COPY --from=builder /app/config.production.yaml config.yaml
 
 # Create an entrypoint script
 RUN echo '#!/bin/sh\n\

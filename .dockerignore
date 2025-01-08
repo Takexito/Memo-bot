@@ -1,26 +1,19 @@
-# Include these files
-!go.mod
-!go.sum
-!*.go
-!config.production.yaml
-
-# Exclude everything else
-*
-*/
-.*
-
-# But allow directories we need
-!cmd/
-!internal/
-!pkg/
-
-# Exclude specific files we don't want
+# Exclude common files and directories
+.git/
+.gitignore
+.env
+.env.*
 *.exe
 *.test
 *.out
-.env
-.env.*
-config.yaml
-.git/
-.gitignore
 README.md
+tmp/
+vendor/
+
+# Don't exclude these files and directories
+!go.mod
+!go.sum
+!cmd/
+!internal/
+!pkg/
+!config.production.yaml
