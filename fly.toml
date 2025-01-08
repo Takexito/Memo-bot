@@ -14,34 +14,13 @@ primary_region = 'ams'
   MIN_CONFIDENCE = '0.7'
   USE_IN_MEMORY_DB = 'false'
 
-[deploy]
-  strategy = "bluegreen"
-  release_command = "sleep 10" # Give the database time to be ready
-
-[[services]]
-  protocol = "tcp"
+[http_service]
   internal_port = 8080
+  force_https = true
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 1
-
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-  [services.concurrency]
-    type = "connections"
-    hard_limit = 25
-    soft_limit = 20
-
-  [[services.tcp_checks]]
-    interval = "15s"
-    timeout = "2s"
-    grace_period = "30s"
+  processes = ['app']
 
 [[vm]]
   cpu_kind = "shared"
