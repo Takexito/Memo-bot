@@ -2,11 +2,11 @@ package storage
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 	_ "github.com/lib/pq"
 	"github.com/xaenox/memo-bot/internal/models"
 	"time"
-	"embed"
 )
 
 //go:embed migrations.sql
@@ -183,4 +183,4 @@ func (s *PostgresStorage) UpdateNoteTags(noteID int64, tags []string) error {
 
 func (s *PostgresStorage) Close() error {
 	return s.db.Close()
-} 
+}

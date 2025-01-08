@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -10,8 +9,8 @@ import (
 )
 
 type MemoryStorage struct {
-	mu    sync.RWMutex
-	notes map[int64]models.Note
+	mu     sync.RWMutex
+	notes  map[int64]models.Note
 	lastID int64
 }
 
@@ -22,7 +21,7 @@ func NewMemoryStorage() *MemoryStorage {
 	}
 }
 
-func (s *MemoryStorage) CreateNote(ctx context.Context, note *models.Note) error {
+func (s *MemoryStorage) CreateNote(note *models.Note) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -35,7 +34,7 @@ func (s *MemoryStorage) CreateNote(ctx context.Context, note *models.Note) error
 	return nil
 }
 
-func (s *MemoryStorage) GetNotesByUserID(ctx context.Context, userID int64) ([]models.Note, error) {
+func (s *MemoryStorage) GetNotesByUserID(userID int64) ([]models.Note, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -51,7 +50,7 @@ func (s *MemoryStorage) GetNotesByUserID(ctx context.Context, userID int64) ([]m
 	return result, nil
 }
 
-func (s *MemoryStorage) GetNotesByTag(ctx context.Context, userID int64, tag string) ([]models.Note, error) {
+func (s *MemoryStorage) GetNotesByTag(userID int64, tag string) ([]models.Note, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -72,7 +71,7 @@ func (s *MemoryStorage) GetNotesByTag(ctx context.Context, userID int64, tag str
 	return result, nil
 }
 
-func (s *MemoryStorage) UpdateNoteTags(ctx context.Context, noteID int64, tags []string) error {
+func (s *MemoryStorage) UpdateNoteTags(noteID int64, tags []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -97,7 +96,7 @@ func sortNotesByCreatedAt(notes []models.Note) {
 	if len(notes) <= 1 {
 		return
 	}
-	
+
 	for i := 0; i < len(notes)-1; i++ {
 		for j := i + 1; j < len(notes); j++ {
 			if notes[i].CreatedAt.Before(notes[j].CreatedAt) {
@@ -105,4 +104,4 @@ func sortNotesByCreatedAt(notes []models.Note) {
 			}
 		}
 	}
-} 
+}
