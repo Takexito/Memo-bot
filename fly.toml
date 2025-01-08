@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for memo-bot-purple-flower-5901 on 2025-01-08T18:53:44+03:00
+# fly.toml app configuration file generated for memo-bot-purple-shape-9865 on 2025-01-08T18:55:57+03:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'memo-bot-purple-flower-5901'
+app = 'memo-bot-purple-shape-9865'
 primary_region = 'ams'
 
 [build]
