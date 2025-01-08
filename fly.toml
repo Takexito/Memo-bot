@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for memo-bot-purple-shape-9865 on 2025-01-08T18:55:57+03:00
+# fly.toml app configuration file generated for memo-bot on 2025-01-08T19:11:57+03:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -14,10 +14,14 @@ primary_region = 'ams'
   MIN_CONFIDENCE = '0.7'
   USE_IN_MEMORY_DB = 'false'
 
+[[mounts]]
+  source = 'postgres_data'
+  destination = '/data'
+
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
   processes = ['app']
@@ -26,7 +30,3 @@ primary_region = 'ams'
   cpu_kind = 'shared'
   cpus = 1
   memory_mb = 256
-
-[mounts]
-  source = "postgres_data"
-  destination = "/data"

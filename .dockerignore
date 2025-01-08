@@ -13,3 +13,14 @@
 !cmd/
 !internal/
 !pkg/
+
+# Exclude specific files we don't want
+*.exe
+*.test
+*.out
+.env
+.env.*
+config.yaml
+.git/
+.gitignore
+README.md
