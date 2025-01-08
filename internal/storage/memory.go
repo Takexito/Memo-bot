@@ -34,14 +34,14 @@ func (s *MemoryStorage) CreateNote(note *models.Note) error {
 	return nil
 }
 
-func (s *MemoryStorage) GetNotesByUserID(userID int64) ([]models.Note, error) {
+func (s *MemoryStorage) GetNotesByUserID(userID int64) ([]*models.Note, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []models.Note
+	var result []*models.Note
 	for _, note := range s.notes {
 		if note.UserID == userID {
-			result = append(result, note)
+			result = append(result, &note)
 		}
 	}
 
@@ -50,16 +50,16 @@ func (s *MemoryStorage) GetNotesByUserID(userID int64) ([]models.Note, error) {
 	return result, nil
 }
 
-func (s *MemoryStorage) GetNotesByTag(userID int64, tag string) ([]models.Note, error) {
+func (s *MemoryStorage) GetNotesByTag(userID int64, tag string) ([]*models.Note, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []models.Note
+	var result []*models.Note
 	for _, note := range s.notes {
 		if note.UserID == userID {
 			for _, t := range note.Tags {
 				if t == tag {
-					result = append(result, note)
+					result = append(result, &note)
 					break
 				}
 			}
@@ -92,7 +92,7 @@ func (s *MemoryStorage) Close() error {
 }
 
 // Helper function to sort notes by created_at in descending order
-func sortNotesByCreatedAt(notes []models.Note) {
+func sortNotesByCreatedAt(notes []*models.Note) {
 	if len(notes) <= 1 {
 		return
 	}

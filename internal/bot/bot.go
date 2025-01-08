@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"context"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/xaenox/memo-bot/internal/classifier"
@@ -50,8 +49,6 @@ func (b *Bot) Start() error {
 }
 
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
-	ctx := context.Background()
-
 	// Handle commands
 	if message.IsCommand() {
 		switch message.Command() {
@@ -60,7 +57,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		case "help":
 			b.handleHelp(message)
 		case "list":
-			b.handleList(ctx, message)
+			b.handleList(message)
 		default:
 			b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
@@ -100,7 +97,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	note.Tags = b.classifier.ClassifyContent(note.Content)
 
 	// Store the note
-	if err := b.storage.CreateNote(ctx, note); err != nil {
+	if err := b.storage.CreateNote(note); err != nil {
 		b.logger.Error("Failed to store note", zap.Error(err))
 		b.sendMessage(message.Chat.ID, "Sorry, failed to save your note. Please try again later.")
 		return
@@ -139,18 +136,18 @@ I'll automatically classify your content and add relevant tags!`
 	b.sendMessage(message.Chat.ID, help)
 }
 
-func (b *Bot) handleList(ctx context.Context, message *tgbotapi.Message) {
+func (b *Bot) handleList(message *tgbotapi.Message) {
 	args := strings.Fields(message.Text)
-	var notes []models.Note
+	var notes []*models.Note
 	var err error
 
 	if len(args) > 1 && strings.HasPrefix(args[1], "#") {
 		// List notes by tag
 		tag := strings.TrimPrefix(args[1], "#")
-		notes, err = b.storage.GetNotesByTag(ctx, message.From.ID, tag)
+		notes, err = b.storage.GetNotesByTag(message.From.ID, tag)
 	} else {
 		// List all notes
-		notes, err = b.storage.GetNotesByUserID(ctx, message.From.ID)
+		notes, err = b.storage.GetNotesByUserID(message.From.ID)
 	}
 
 	if err != nil {
@@ -187,4 +184,4 @@ func (b *Bot) sendMessage(chatID int64, text string) {
 			zap.Error(err),
 			zap.Int64("chat_id", chatID))
 	}
-} 
+}

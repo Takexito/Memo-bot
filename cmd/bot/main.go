@@ -43,10 +43,10 @@ func main() {
 	defer store.Close()
 
 	// Initialize classifier
-	clf := classifier.NewChatGPTClassifier(cfg.OpenAI.APIKey, cfg.OpenAI.Model, cfg.OpenAI.MaxTokens, cfg.OpenAI.Temperature)
+	clf := classifier.NewGPTClassifier(cfg.OpenAI.APIKey, cfg.OpenAI.Model, cfg.OpenAI.MaxTokens, cfg.OpenAI.Temperature, cfg.Classifier.MaxTags, logger)
 
 	// Initialize bot
-	b, err := bot.NewBot(cfg.Telegram.Token, store, clf, logger)
+	b, err := bot.New(cfg.Telegram.Token, store, clf, logger)
 	if err != nil {
 		logger.Fatal("Failed to create bot", zap.Error(err))
 	}
@@ -55,4 +55,4 @@ func main() {
 	if err := b.Start(); err != nil {
 		logger.Fatal("Bot error", zap.Error(err))
 	}
-} 
+}

@@ -10,21 +10,21 @@ type Classifier interface {
 
 type SimpleClassifier struct {
 	minConfidence float64
-	maxTags      int
+	maxTags       int
 }
 
 func NewSimpleClassifier(minConfidence float64, maxTags int) *SimpleClassifier {
 	return &SimpleClassifier{
 		minConfidence: minConfidence,
-		maxTags:      maxTags,
+		maxTags:       maxTags,
 	}
 }
 
-// Simple implementation that extracts hashtags and common keywords
+// ClassifyContent Simple implementation that extracts hashtags and common keywords
 func (c *SimpleClassifier) ClassifyContent(content string) []string {
 	words := strings.Fields(content)
 	tags := make(map[string]struct{})
-	
+
 	// Extract hashtags
 	for _, word := range words {
 		if strings.HasPrefix(word, "#") {
@@ -66,4 +66,4 @@ func (c *SimpleClassifier) ClassifyContent(content string) []string {
 	}
 
 	return result
-} 
+}
