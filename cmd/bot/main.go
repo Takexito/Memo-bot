@@ -1,9 +1,6 @@
 package main
 
 import (
-	"log"
-	"path/filepath"
-
 	"github.com/xaenox/memo-bot/internal/bot"
 	"github.com/xaenox/memo-bot/internal/classifier"
 	"github.com/xaenox/memo-bot/internal/storage"
@@ -13,19 +10,13 @@ import (
 
 func main() {
 	// Initialize logger
-	logger, err := zap.NewProduction()
-	if err != nil {
-		log.Fatalf("Failed to create logger: %v", err)
-	}
+	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
 	// Load configuration
-	configPath := filepath.Join(".", "config.yaml")
-	cfg, err := config.LoadConfig(configPath)
+	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
-		logger.Fatal("Failed to load config",
-			zap.Error(err),
-			zap.String("path", configPath))
+		logger.Fatal("Failed to load config", zap.Error(err), zap.String("path", "config.yaml"))
 	}
 
 	// Initialize storage
@@ -35,37 +26,32 @@ func main() {
 		store = storage.NewMemoryStorage()
 	} else {
 		logger.Info("Using PostgreSQL storage")
-		store, err = storage.NewPostgresStorage(
-			cfg.Database.Host,
-			cfg.Database.Port,
-			cfg.Database.User,
-			cfg.Database.Password,
-			cfg.Database.DBName,
-			cfg.Database.SSLMode,
-		)
+		dbConfig := storage.DatabaseConfig{
+			Host:        cfg.Database.Host,
+			Port:        cfg.Database.Port,
+			User:        cfg.Database.User,
+			Password:    cfg.Database.Password,
+			DBName:      cfg.Database.DBName,
+			SSLMode:     cfg.Database.SSLMode,
+			UseInMemory: cfg.Database.UseInMemory,
+		}
+		store, err = storage.NewPostgresStorage(dbConfig)
 		if err != nil {
 			logger.Fatal("Failed to initialize storage", zap.Error(err))
 		}
 	}
 	defer store.Close()
 
-	// Initialize GPT classifier
-	clf := classifier.NewGPTClassifier(
-		cfg.OpenAI.APIKey,
-			cfg.OpenAI.Model,
-			cfg.OpenAI.MaxTokens,
-			cfg.OpenAI.Temperature,
-			cfg.Classifier.MaxTags,
-			logger,
-	)
+	// Initialize classifier
+	clf := classifier.NewChatGPTClassifier(cfg.OpenAI.APIKey, cfg.OpenAI.Model, cfg.OpenAI.MaxTokens, cfg.OpenAI.Temperature)
 
-	// Initialize and start bot
-	b, err := bot.New(cfg.Telegram.Token, store, clf, logger)
+	// Initialize bot
+	b, err := bot.NewBot(cfg.Telegram.Token, store, clf, logger)
 	if err != nil {
 		logger.Fatal("Failed to create bot", zap.Error(err))
 	}
 
-	logger.Info("Bot started")
+	// Start the bot
 	if err := b.Start(); err != nil {
 		logger.Fatal("Bot error", zap.Error(err))
 	}
