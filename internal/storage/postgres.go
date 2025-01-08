@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"github.com/xaenox/memo-bot/internal/models"
 	"time"
@@ -66,38 +67,30 @@ func (s *PostgresStorage) initializeSchema() error {
 	return nil
 }
 
-func (s *PostgresStorage) CreateNote(note *models.Note) error {
+func (p *PostgresStorage) CreateNote(note *models.Note) error {
 	query := `
-		INSERT INTO notes (user_id, content, content_type, file_id, tags)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, created_at, updated_at`
+        INSERT INTO notes (user_id, content, type, tags, file_id, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        RETURNING id`
 
-	err := s.db.QueryRow(
+	return p.db.QueryRow(
 		query,
 		note.UserID,
 		note.Content,
 		note.Type,
+		pq.Array(note.Tags), // Wrap tags with pq.Array
 		note.FileID,
-		note.Tags,
-	).Scan(&note.ID, &note.CreatedAt, &note.UpdatedAt)
-
-	if err != nil {
-		return fmt.Errorf("error creating note: %v", err)
-	}
-
-	return nil
+	).Scan(&note.ID)
 }
 
-func (s *PostgresStorage) GetNotesByUserID(userID int64) ([]*models.Note, error) {
-	query := `
-		SELECT id, user_id, content, content_type, file_id, tags, created_at, updated_at
-		FROM notes
-		WHERE user_id = $1
-		ORDER BY created_at DESC`
+func (p *PostgresStorage) GetNotesByUserID(userID int64) ([]*models.Note, error) {
+	query := `SELECT id, user_id, content, type, tags, file_id, created_at, updated_at 
+              FROM notes WHERE user_id = $1 
+              ORDER BY created_at DESC LIMIT 10`
 
-	rows, err := s.db.Query(query, userID)
+	rows, err := p.db.Query(query, userID)
 	if err != nil {
-		return nil, fmt.Errorf("error querying notes: %v", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -109,30 +102,28 @@ func (s *PostgresStorage) GetNotesByUserID(userID int64) ([]*models.Note, error)
 			&note.UserID,
 			&note.Content,
 			&note.Type,
+			pq.Array(&note.Tags), // Wrap tags with pq.Array
 			&note.FileID,
-			&note.Tags,
 			&note.CreatedAt,
 			&note.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("error scanning note: %v", err)
+			return nil, err
 		}
 		notes = append(notes, note)
 	}
-
-	return notes, nil
+	return notes, rows.Err()
 }
 
-func (s *PostgresStorage) GetNotesByTag(userID int64, tag string) ([]*models.Note, error) {
-	query := `
-		SELECT id, user_id, content, content_type, file_id, tags, created_at, updated_at
-		FROM notes
-		WHERE user_id = $1 AND $2 = ANY(tags)
-		ORDER BY created_at DESC`
+func (p *PostgresStorage) GetNotesByTag(userID int64, tag string) ([]*models.Note, error) {
+	query := `SELECT id, user_id, content, type, tags, file_id, created_at, updated_at 
+              FROM notes 
+              WHERE user_id = $1 AND $2 = ANY(tags)
+              ORDER BY created_at DESC LIMIT 10`
 
-	rows, err := s.db.Query(query, userID, tag)
+	rows, err := p.db.Query(query, userID, tag)
 	if err != nil {
-		return nil, fmt.Errorf("error querying notes by tag: %v", err)
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -144,18 +135,17 @@ func (s *PostgresStorage) GetNotesByTag(userID int64, tag string) ([]*models.Not
 			&note.UserID,
 			&note.Content,
 			&note.Type,
+			pq.Array(&note.Tags), // Wrap tags with pq.Array
 			&note.FileID,
-			&note.Tags,
 			&note.CreatedAt,
 			&note.UpdatedAt,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("error scanning note: %v", err)
+			return nil, err
 		}
 		notes = append(notes, note)
 	}
-
-	return notes, nil
+	return notes, rows.Err()
 }
 
 func (s *PostgresStorage) UpdateNoteTags(noteID int64, tags []string) error {
