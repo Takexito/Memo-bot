@@ -47,7 +47,3 @@ primary_region = 'ams'
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 256
-
-[mounts]
-  source = "postgres_data"
-  destination = "/data"
