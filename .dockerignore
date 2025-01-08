@@ -1,40 +1,15 @@
-# Git
-.git
-.gitignore
+# Include these files
+!go.mod
+!go.sum
+!*.go
+!config.production.yaml
 
-# IDE
-.idea
-.vscode
-*.swp
-*.swo
+# Exclude everything else
+*
+*/
+.*
 
-# Binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-memo-bot
-
-# Testing
-*.test
-*.out
-
-# Environment files
-.env
-.env.*
-config.yaml
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Vercel
-.vercel/
-
-# Temporary files
-tmp/
-temp/
-
-# Log files
-*.log
+# But allow directories we need
+!cmd/
+!internal/
+!pkg/
