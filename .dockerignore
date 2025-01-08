@@ -1,57 +1,40 @@
-# flyctl launch added from .gitignore
-# Go specific
-**\*.exe
-**\*.exe~
-**\*.dll
-**\*.so
-**\*.dylib
-**\*.test
-**\*.out
-**\*.sum
-**\go.work
+# Git
+.git
+.gitignore
 
-# Output directories
-**\bin
-**\dist
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
 
-# Dependencies
-**\vendor
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+memo-bot
 
-# IDE specific files
-**\.idea
-**\.vscode
-**\*.swp
-**\*.swo
-**\*~
+# Testing
+*.test
+*.out
 
 # Environment files
-**\.env
-**\.env.local
-**\.env.*.local
-**\config.yaml
+.env
+.env.*
+config.yaml
 
-# OS specific
-**\.DS_Store
-**\Thumbs.db
+# OS
+.DS_Store
+Thumbs.db
 
 # Vercel
-**\.vercel
+.vercel/
+
+# Temporary files
+tmp/
+temp/
 
 # Log files
-**\*.log
-**\npm-debug.log*
-**\yarn-debug.log*
-**\yarn-error.log*
-
-# Local development files
-**\tmp
-**\temp
-
-# Database files
-**\*.db
-**\*.sqlite
-**\*.sqlite3
-
-# Binary files
-**\memo-bot 
-fly.toml
+*.log
