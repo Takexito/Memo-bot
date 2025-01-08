@@ -150,6 +150,74 @@ For production, we recommend using a managed PostgreSQL service:
 2. Update the `DATABASE_URL` environment variable in Vercel
 3. Run the database migration script (provided in the setup section)
 
+## Deployment to fly.io
+
+### Prerequisites
+1. Install the flyctl CLI:
+   ```bash
+   # Windows (PowerShell)
+   iwr https://fly.io/install.ps1 -useb | iex
+
+   # macOS/Linux
+   curl -L https://fly.io/install.sh | sh
+   ```
+
+2. Sign up and login:
+   ```bash
+   flyctl auth signup
+   # or login if you already have an account
+   flyctl auth login
+   ```
+
+### Database Setup
+1. Create a PostgreSQL database:
+   ```bash
+   flyctl postgres create
+   ```
+   Note the connection string provided.
+
+2. Set secrets:
+   ```bash
+   flyctl secrets set TELEGRAM_TOKEN="your_bot_token"
+   flyctl secrets set OPENAI_API_KEY="your_openai_api_key"
+   flyctl secrets set DATABASE_URL="your_postgres_connection_string"
+   ```
+
+### Deploy
+1. Initialize the app (first time only):
+   ```bash
+   flyctl launch
+   ```
+
+2. Deploy:
+   ```bash
+   flyctl deploy
+   ```
+
+3. Check status:
+   ```bash
+   flyctl status
+   ```
+
+4. View logs:
+   ```bash
+   flyctl logs
+   ```
+
+### Scaling (Optional)
+```bash
+# Scale to multiple instances
+flyctl scale count 2
+
+# Scale memory
+flyctl scale memory 512
+```
+
+### Monitoring
+- View the dashboard: `flyctl dashboard`
+- Monitor metrics: `flyctl metrics`
+- Check logs: `flyctl logs`
+
 ## Running Locally
 
 ```bash

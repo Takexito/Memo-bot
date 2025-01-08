@@ -29,27 +29,34 @@ func main() {
 	}
 
 	// Initialize storage
-	store, err := storage.NewPostgresStorage(
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.DBName,
-		cfg.Database.SSLMode,
-	)
-	if err != nil {
-		logger.Fatal("Failed to initialize storage", zap.Error(err))
+	var store storage.Storage
+	if cfg.Database.UseInMemory {
+		logger.Info("Using in-memory storage")
+		store = storage.NewMemoryStorage()
+	} else {
+		logger.Info("Using PostgreSQL storage")
+		store, err = storage.NewPostgresStorage(
+			cfg.Database.Host,
+			cfg.Database.Port,
+			cfg.Database.User,
+			cfg.Database.Password,
+			cfg.Database.DBName,
+			cfg.Database.SSLMode,
+		)
+		if err != nil {
+			logger.Fatal("Failed to initialize storage", zap.Error(err))
+		}
 	}
 	defer store.Close()
 
 	// Initialize GPT classifier
 	clf := classifier.NewGPTClassifier(
 		cfg.OpenAI.APIKey,
-		cfg.OpenAI.Model,
-		cfg.OpenAI.MaxTokens,
-		cfg.OpenAI.Temperature,
-		cfg.Classifier.MaxTags,
-		logger,
+			cfg.OpenAI.Model,
+			cfg.OpenAI.MaxTokens,
+			cfg.OpenAI.Temperature,
+			cfg.Classifier.MaxTags,
+			logger,
 	)
 
 	// Initialize and start bot

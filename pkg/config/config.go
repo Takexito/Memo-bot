@@ -19,6 +19,7 @@ type Config struct {
 		 DBName   string
 		 SSLMode  string
 		 URL      string // For Vercel deployment
+		 UseInMemory bool `mapstructure:"use_in_memory"` // Flag for using in-memory database
 	}
 	Classifier struct {
 		MinConfidence float64 `mapstructure:"min_confidence"`
@@ -66,6 +67,10 @@ func LoadConfig(path string) (*Config, error) {
 		if val, err := strconv.ParseFloat(minConf, 64); err == nil {
 			config.Classifier.MinConfidence = val
 		}
+	}
+
+	if useInMemory := os.Getenv("USE_IN_MEMORY_DB"); useInMemory != "" {
+		config.Database.UseInMemory = useInMemory == "true"
 	}
 
 	// Set defaults for OpenAI if not set

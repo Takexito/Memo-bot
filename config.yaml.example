@@ -1,0 +1,21 @@
+telegram:
+  token: "YOUR_BOT_TOKEN"  # Get this from @BotFather
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "postgres"
+  password: "your_password"
+  dbname: "memo_bot"
+  sslmode: "disable"
+  use_in_memory: false  # Set to true to use in-memory storage for testing
+
+classifier:
+  min_confidence: 0.7
+  max_tags: 5
+
+openai:
+  api_key: "YOUR_OPENAI_API_KEY"  # Get this from platform.openai.com
+  model: "gpt-3.5-turbo"         # Or use "gpt-4" for better results
+  max_tokens: 150                # Increase for longer responses
+  temperature: 0.3               # Adjust between 0-1 for creativity vs precision 

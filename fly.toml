@@ -1,0 +1,21 @@
+app = "memo-bot"
+primary_region = "ams" # Change this to your preferred region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  USE_IN_MEMORY_DB = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256 
