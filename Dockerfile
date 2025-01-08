@@ -22,7 +22,7 @@ WORKDIR /app
 
 # Copy the binary from builder
 COPY --from=builder /app/memo-bot .
-COPY config.yaml .
+COPY config.production.yaml ./config.yaml
 
 # Run the application
 CMD ["./memo-bot"] 

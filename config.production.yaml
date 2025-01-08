@@ -1,0 +1,15 @@
+telegram:
+  token: "" # Will be set via environment variable
+
+database:
+  use_in_memory: false # Will use DATABASE_URL from environment
+
+classifier:
+  min_confidence: 0.7
+  max_tags: 5
+
+openai:
+  api_key: "" # Will be set via environment variable
+  model: "gpt-3.5-turbo"
+  max_tokens: 150
+  temperature: 0.3 

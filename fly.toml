@@ -1,11 +1,18 @@
-app = "memo-bot"
-primary_region = "ams" # Change this to your preferred region
+# fly.toml app configuration file generated for memo-bot-snowy-frog-6009 on 2025-01-08T18:48:42+03:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'memo-bot-snowy-frog-6009'
+primary_region = 'ams'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  USE_IN_MEMORY_DB = "false"
+  USE_IN_MEMORY_DB = 'false'
+  MAX_TAGS = '5'
+  MIN_CONFIDENCE = '0.7'
 
 [http_service]
   internal_port = 8080
@@ -13,9 +20,9 @@ primary_region = "ams" # Change this to your preferred region
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
 [[vm]]
-  cpu_kind = "shared"
+  cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256 
+  memory_mb = 256
