@@ -42,7 +42,7 @@ func main() {
 	}
 	defer store.Close()
 
-	// Initialize classifier
+	// Initialize classifier with storage
 	clf := classifier.NewGPTClassifier(
 		cfg.OpenAI.APIKey,
 		cfg.OpenAI.AssistantID,
@@ -50,6 +50,7 @@ func main() {
 		cfg.OpenAI.MaxTokens,
 		cfg.OpenAI.Temperature,
 		cfg.Classifier.MaxTags,
+		store,
 		logger,
 	)
 

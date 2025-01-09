@@ -28,11 +28,12 @@ type GPTClassifier struct {
 	temperature float64
 	maxTags     int
 	logger      *zap.Logger
-	threads     map[int64]string  // map[userID]threadID
+	threads     map[int64]string  // In-memory cache
 	threadMutex sync.RWMutex
+	storage     storage.ThreadStorage
 }
 
-func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens int, temperature float64, maxTags int, logger *zap.Logger) *GPTClassifier {
+func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens int, temperature float64, maxTags int, storage storage.ThreadStorage, logger *zap.Logger) *GPTClassifier {
 	return &GPTClassifier{
 		client:      openai.NewClient(apiKey),
 		assistantID: assistantID,
@@ -43,6 +44,7 @@ func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens
 		logger:      logger,
 		threads:     make(map[int64]string),
 		threadMutex: sync.RWMutex{},
+		storage:     storage,
 	}
 }
 
@@ -118,6 +120,7 @@ func (c *GPTClassifier) fallbackClassification(content string) []string {
 	return simpleClassifier.ClassifyContent(content)
 }
 func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (string, error) {
+	// First check in-memory cache
 	c.threadMutex.RLock()
 	threadID, exists := c.threads[userID]
 	c.threadMutex.RUnlock()
@@ -126,12 +129,56 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 		// Verify thread still exists and is valid
 		_, err := c.client.RetrieveThread(ctx, threadID)
 		if err == nil {
+			// Update last used timestamp
+			if err := c.storage.UpdateThreadLastUsed(userID); err != nil {
+				c.logger.Warn("Failed to update thread last used timestamp",
+					zap.Error(err),
+					zap.Int64("user_id", userID))
+			}
 			return threadID, nil
 		}
-		// Thread doesn't exist anymore, remove it
+		// Thread doesn't exist anymore, remove it from both cache and storage
 		c.threadMutex.Lock()
 		delete(c.threads, userID)
 		c.threadMutex.Unlock()
+		
+		if err := c.storage.DeleteThread(userID); err != nil {
+			c.logger.Error("Failed to delete invalid thread from storage",
+				zap.Error(err),
+				zap.Int64("user_id", userID))
+		}
+	}
+
+	// Check storage if not in cache
+	if !exists {
+		storedThreadID, err := c.storage.GetThread(userID)
+		if err != nil {
+			c.logger.Error("Failed to get thread from storage",
+				zap.Error(err),
+				zap.Int64("user_id", userID))
+		} else if storedThreadID != "" {
+			// Verify stored thread is still valid
+			_, err := c.client.RetrieveThread(ctx, storedThreadID)
+			if err == nil {
+				// Update cache and last used timestamp
+				c.threadMutex.Lock()
+				c.threads[userID] = storedThreadID
+				c.threadMutex.Unlock()
+				
+				if err := c.storage.UpdateThreadLastUsed(userID); err != nil {
+					c.logger.Warn("Failed to update thread last used timestamp",
+						zap.Error(err),
+						zap.Int64("user_id", userID))
+				}
+				return storedThreadID, nil
+			}
+			// Thread invalid, delete from storage
+			if err := c.storage.DeleteThread(userID); err != nil {
+				c.logger.Error("Failed to delete invalid thread from storage",
+					zap.Error(err),
+					zap.Int64("user_id", userID))
+			}
+		}
 	}
 
 	// Create new thread
@@ -140,10 +187,17 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 		return "", fmt.Errorf("failed to create thread: %w", err)
 	}
 
-	// Store new thread ID
+	// Store in both cache and persistent storage
 	c.threadMutex.Lock()
 	c.threads[userID] = thread.ID
 	c.threadMutex.Unlock()
+
+	if err := c.storage.SaveThread(userID, thread.ID); err != nil {
+		c.logger.Error("Failed to save thread to storage",
+			zap.Error(err),
+			zap.Int64("user_id", userID),
+			zap.String("thread_id", thread.ID))
+	}
 
 	return thread.ID, nil
 }

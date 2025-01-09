@@ -11,3 +11,10 @@ type Storage interface {
 	UpdateNoteTags(noteID int64, tags []string) error
 	Close() error
 }
+
+type ThreadStorage interface {
+	GetThread(userID int64) (string, error)
+	SaveThread(userID int64, threadID string) error
+	UpdateThreadLastUsed(userID int64) error
+	DeleteThread(userID int64) error
+}

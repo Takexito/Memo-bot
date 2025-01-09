@@ -174,3 +174,45 @@ func (s *PostgresStorage) UpdateNoteTags(noteID int64, tags []string) error {
 func (s *PostgresStorage) Close() error {
 	return s.db.Close()
 }
+
+func (p *PostgresStorage) GetThread(userID int64) (string, error) {
+	var threadID string
+	err := p.db.QueryRow(`
+		SELECT thread_id 
+		FROM assistant_threads 
+		WHERE user_id = $1`, userID).Scan(&threadID)
+	
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return threadID, err
+}
+
+func (p *PostgresStorage) SaveThread(userID int64, threadID string) error {
+	_, err := p.db.Exec(`
+		INSERT INTO assistant_threads (user_id, thread_id)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) 
+		DO UPDATE SET 
+			thread_id = EXCLUDED.thread_id,
+			last_used_at = CURRENT_TIMESTAMP`,
+		userID, threadID)
+	return err
+}
+
+func (p *PostgresStorage) UpdateThreadLastUsed(userID int64) error {
+	_, err := p.db.Exec(`
+		UPDATE assistant_threads 
+		SET last_used_at = CURRENT_TIMESTAMP
+		WHERE user_id = $1`,
+		userID)
+	return err
+}
+
+func (p *PostgresStorage) DeleteThread(userID int64) error {
+	_, err := p.db.Exec(`
+		DELETE FROM assistant_threads 
+		WHERE user_id = $1`,
+		userID)
+	return err
+}
