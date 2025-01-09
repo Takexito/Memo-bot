@@ -10,6 +10,7 @@ type Storage interface {
 	GetNotesByTag(userID int64, tag string) ([]*models.Note, error)
 	UpdateNoteTags(noteID int64, tags []string) error
 	Close() error
+	ThreadStorage // Embed the ThreadStorage interface
 }
 
 type ThreadStorage interface {
