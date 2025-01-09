@@ -43,7 +43,15 @@ func main() {
 	defer store.Close()
 
 	// Initialize classifier
-	clf := classifier.NewGPTClassifier(cfg.OpenAI.APIKey, cfg.OpenAI.Model, cfg.OpenAI.MaxTokens, cfg.OpenAI.Temperature, cfg.Classifier.MaxTags, logger)
+	clf := classifier.NewGPTClassifier(
+		cfg.OpenAI.APIKey,
+		cfg.OpenAI.AssistantID,
+		cfg.OpenAI.Model,
+		cfg.OpenAI.MaxTokens,
+		cfg.OpenAI.Temperature,
+		cfg.Classifier.MaxTags,
+		logger,
+	)
 
 	// Initialize bot
 	b, err := bot.New(cfg.Telegram.Token, store, clf, logger)

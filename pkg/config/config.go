@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
+	"github.com/spf13/viper"
 	"net/url"
 	"strings"
-	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -35,6 +35,7 @@ type ClassifierConfig struct {
 
 type OpenAIConfig struct {
 	APIKey      string  `mapstructure:"api_key"`
+	AssistantID string  `mapstructure:"assistant_id"`
 	Model       string  `mapstructure:"model"`
 	MaxTokens   int     `mapstructure:"max_tokens"`
 	Temperature float64 `mapstructure:"temperature"`
@@ -67,7 +68,7 @@ func parseDatabaseURL(dbURL string) (DatabaseConfig, error) {
 
 func LoadConfig(path string) (*Config, error) {
 	v := viper.New()
-	
+
 	// Set default values
 	v.SetDefault("database.port", 5432)
 	v.SetDefault("database.host", "localhost")
@@ -76,8 +77,8 @@ func LoadConfig(path string) (*Config, error) {
 	v.SetDefault("database.use_in_memory", false)
 	v.SetDefault("classifier.min_confidence", 0.7)
 	v.SetDefault("classifier.max_tags", 5)
-	v.SetDefault("openai.model", "gpt-3.5-turbo")
-	v.SetDefault("openai.max_tokens", 150)
+	v.SetDefault("openai.model", "gpt-4o")
+	v.SetDefault("openai.max_tokens", 500)
 	v.SetDefault("openai.temperature", 0.7)
 
 	// Enable environment variable support
@@ -112,5 +113,9 @@ func LoadConfig(path string) (*Config, error) {
 		config.OpenAI.APIKey = apiKey
 	}
 
+	if apiKey := v.GetString("OPENAI_ASSISTANT_ID"); apiKey != "" {
+		config.OpenAI.AssistantID = apiKey
+	}
+
 	return &config, nil
-} 
+}
