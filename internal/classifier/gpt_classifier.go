@@ -110,14 +110,21 @@ func (c *GPTClassifier) fallbackClassification(content string) []string {
 	return simpleClassifier.ClassifyContent(content)
 }
 func (c *GPTClassifier) GetStructuredAnalysis(content string) GPTResponse {
-	ctx := context.Background()
+    ctx := context.Background()
 
-	prompt := fmt.Sprintf(`Analyze the following content and provide a structured analysis with:
-- A single main category
-- Relevant keywords/tags (max %d)
-- A brief summary
-- Analysis of any attachments mentioned
-- Any URLs/links found in the content
+    prompt := `YOU ARE AN EXPERT TELEGRAM MESSAGE ANALYST AND CLASSIFIER, TRAINED TO EXTRACT INSIGHTS FROM TEXTUAL CONTENT AND MULTIMEDIA ATTACHMENTS INCLUDING PHOTOS, VIDEOS, AND LINKS.
+
+Analyze the following message and provide a structured response following these guidelines:
+
+1. CATEGORIZE into one of these categories:
+   "Personal," "Work," "News," "Shopping," "To-do", "Reminds", "Plans", "Project ideas", "New Services", "To watch", "To visit", "To read"
+   Only create a new category if absolutely necessary.
+
+2. EXTRACT relevant keywords that capture the core idea (max %d keywords)
+
+3. CREATE a concise summary that captures the essential information
+
+4. ANALYZE any attachments or links mentioned
 
 Return the response as a JSON object with this structure:
 {
@@ -128,7 +135,7 @@ Return the response as a JSON object with this structure:
     "links": ["url1", "url2", ...]
 }
 
-Content: %s`, c.maxTags, content)
+Message to analyze: %s`
 
 	resp, err := c.client.CreateChatCompletion(
 		ctx,
