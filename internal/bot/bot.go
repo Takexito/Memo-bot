@@ -93,18 +93,10 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		}
 	}
 
-	// Get structured analysis from GPT
-	analysis := b.classifier.GetStructuredAnalysis(note.Content, message.From.ID)
+	// Classify the content
+	tags := b.classifier.ClassifyContent(note.Content, message.From.ID)
+	note.Tags = tags
 	
-	// Convert keywords and category to hashtags
-	hashtags := make([]string, 0, len(analysis.Keywords)+1)
-	hashtags = append(hashtags, "#"+strings.ToLower(analysis.Category))
-	for _, keyword := range analysis.Keywords {
-		hashtags = append(hashtags, "#"+strings.ToLower(strings.ReplaceAll(keyword, " ", "_")))
-	}
-	
-	// Store the note with the tags
-	note.Tags = append([]string{strings.ToLower(analysis.Category)}, analysis.Keywords...)
 	if err := b.storage.CreateNote(note); err != nil {
 		b.logger.Error("Failed to store note", zap.Error(err))
 		b.sendMessage(message.Chat.ID, "Sorry, failed to save your note. Please try again later.")
@@ -112,20 +104,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	}
 
 	// Format and send the response
-	response := fmt.Sprintf("📝 *Summary*: %s\n\n"+
-		"🏷 *Tags*: %s\n",
-		analysis.Summary,
-		strings.Join(hashtags, " "))
-
-	// Add attachments analysis if present
-	if analysis.AttachmentsAnalysis != "" {
-		response += fmt.Sprintf("\n📎 *Attachments*: %s", analysis.AttachmentsAnalysis)
-	}
-
-	// Add links if present
-	if len(analysis.Links) > 0 {
-		response += fmt.Sprintf("\n\n🔗 *Links*:\n%s", strings.Join(analysis.Links, "\n"))
-	}
+	response := fmt.Sprintf("📝 Note saved with tags: %s", strings.Join(tags, ", "))
 
 	// Send the formatted response with Markdown
 	msg := tgbotapi.NewMessage(message.Chat.ID, response)
