@@ -50,53 +50,20 @@ func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens
 }
 
 func (c *GPTClassifier) ClassifyContent(content string, userID int64) []string {
-	ctx := context.Background()
+    // Get the structured analysis
+    analysis := c.GetStructuredAnalysis(content, userID)
+    
+    // Combine category and keywords for tags
+    tags := make([]string, 0, len(analysis.Keywords)+1)
+    tags = append(tags, strings.ToLower(analysis.Category))
+    tags = append(tags, analysis.Keywords...)
 
-	// Update the prompt to request structured response
-	prompt := content
+    // Ensure we don't exceed maxTags
+    if len(tags) > c.maxTags {
+        tags = tags[:c.maxTags]
+    }
 
-	// Create chat completion request
-	resp, err := c.client.CreateChatCompletion(
-		ctx,
-		openai.ChatCompletionRequest{
-			Model: c.model,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: prompt,
-				},
-			},
-			MaxTokens:   c.maxTokens,
-			Temperature: float32(c.temperature),
-		},
-	)
-
-	if err != nil {
-		c.logger.Error("Failed to get GPT response", zap.Error(err))
-		return c.fallbackClassification(content, userID)
-	}
-
-	// Parse the structured response
-	var gptResponse GPTResponse
-	response := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if err := json.Unmarshal([]byte(response), &gptResponse); err != nil {
-		c.logger.Error("Failed to parse GPT response",
-			zap.Error(err),
-			zap.String("response", response))
-		return c.fallbackClassification(content, userID)
-	}
-
-	// Combine category and keywords for tags
-	tags := make([]string, 0, len(gptResponse.Keywords)+1)
-	tags = append(tags, strings.ToLower(gptResponse.Category))
-	tags = append(tags, gptResponse.Keywords...)
-
-	// Ensure we don't exceed maxTags
-	if len(tags) > c.maxTags {
-		tags = tags[:c.maxTags]
-	}
-
-	return tags
+    return tags
 }
 
 // Fallback to simple classification if GPT fails
