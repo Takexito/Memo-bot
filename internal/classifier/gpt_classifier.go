@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/sashabaranov/go-openai"
@@ -27,6 +28,8 @@ type GPTClassifier struct {
 	temperature float64
 	maxTags     int
 	logger      *zap.Logger
+	threads     map[int64]string  // map[userID]threadID
+	threadMutex sync.RWMutex
 }
 
 func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens int, temperature float64, maxTags int, logger *zap.Logger) *GPTClassifier {
@@ -38,10 +41,12 @@ func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens
 		temperature: temperature,
 		maxTags:     maxTags,
 		logger:      logger,
+		threads:     make(map[int64]string),
+		threadMutex: sync.RWMutex{},
 	}
 }
 
-func (c *GPTClassifier) ClassifyContent(content string) []string {
+func (c *GPTClassifier) ClassifyContent(content string, userID int64) []string {
 	ctx := context.Background()
 
 	// Update the prompt to request structured response
@@ -112,7 +117,38 @@ func (c *GPTClassifier) fallbackClassification(content string) []string {
 	simpleClassifier := NewSimpleClassifier(0.7, c.maxTags)
 	return simpleClassifier.ClassifyContent(content)
 }
-func (c *GPTClassifier) GetStructuredAnalysis(content string) GPTResponse {
+func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (string, error) {
+	c.threadMutex.RLock()
+	threadID, exists := c.threads[userID]
+	c.threadMutex.RUnlock()
+
+	if exists {
+		// Verify thread still exists and is valid
+		_, err := c.client.RetrieveThread(ctx, threadID)
+		if err == nil {
+			return threadID, nil
+		}
+		// Thread doesn't exist anymore, remove it
+		c.threadMutex.Lock()
+		delete(c.threads, userID)
+		c.threadMutex.Unlock()
+	}
+
+	// Create new thread
+	thread, err := c.client.CreateThread(ctx, openai.ThreadRequest{})
+	if err != nil {
+		return "", fmt.Errorf("failed to create thread: %w", err)
+	}
+
+	// Store new thread ID
+	c.threadMutex.Lock()
+	c.threads[userID] = thread.ID
+	c.threadMutex.Unlock()
+
+	return thread.ID, nil
+}
+
+func (c *GPTClassifier) GetStructuredAnalysis(content string, userID int64) GPTResponse {
 	ctx := context.Background()
 
 	// Create a thread

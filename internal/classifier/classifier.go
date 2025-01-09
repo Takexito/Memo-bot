@@ -5,7 +5,7 @@ import (
 )
 
 type Classifier interface {
-	ClassifyContent(content string) []string
+	ClassifyContent(content string, userID int64) []string
 }
 
 type SimpleClassifier struct {
@@ -21,7 +21,7 @@ func NewSimpleClassifier(minConfidence float64, maxTags int) *SimpleClassifier {
 }
 
 // ClassifyContent Simple implementation that extracts hashtags and common keywords
-func (c *SimpleClassifier) ClassifyContent(content string) []string {
+func (c *SimpleClassifier) ClassifyContent(content string, userID int64) []string {
 	words := strings.Fields(content)
 	tags := make(map[string]struct{})
 

@@ -94,7 +94,7 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	}
 
 	// Get structured analysis from GPT
-	analysis := b.classifier.GetStructuredAnalysis(note.Content)
+	analysis := b.classifier.GetStructuredAnalysis(note.Content, message.From.ID)
 	
 	// Convert keywords and category to hashtags
 	hashtags := make([]string, 0, len(analysis.Keywords)+1)
