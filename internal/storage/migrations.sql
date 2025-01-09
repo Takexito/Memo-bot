@@ -1,5 +1,5 @@
 -- Drop existing objects
-DROP TABLE IF EXISTS notes;
+DROP TABLE IF EXISTS notes CASCADE;
 DROP TYPE IF EXISTS content_type CASCADE;
 
 -- Create fresh schema

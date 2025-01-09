@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xaenox/memo-bot/internal/storage"
 	"strings"
 	"sync"
 	"time"
@@ -28,7 +29,7 @@ type GPTClassifier struct {
 	temperature float64
 	maxTags     int
 	logger      *zap.Logger
-	threads     map[int64]string  // In-memory cache
+	threads     map[int64]string // In-memory cache
 	threadMutex sync.RWMutex
 	storage     storage.ThreadStorage
 }
@@ -52,23 +53,7 @@ func (c *GPTClassifier) ClassifyContent(content string, userID int64) []string {
 	ctx := context.Background()
 
 	// Update the prompt to request structured response
-	prompt := fmt.Sprintf(`Analyze the following content and provide a structured analysis with:
-- A single main category
-- Relevant keywords/tags (max %d)
-- A brief summary
-- Analysis of any attachments mentioned
-- Any URLs/links found in the content
-
-Return the response as a JSON object with this structure:
-{
-    "category": "main_category",
-    "keywords": ["keyword1", "keyword2", ...],
-    "summary": "brief_summary",
-    "attachments_analysis": "analysis_of_attachments",
-    "links": ["url1", "url2", ...]
-}
-
-Content: %s`, c.maxTags, content)
+	prompt := content
 
 	// Create chat completion request
 	resp, err := c.client.CreateChatCompletion(
@@ -88,7 +73,7 @@ Content: %s`, c.maxTags, content)
 
 	if err != nil {
 		c.logger.Error("Failed to get GPT response", zap.Error(err))
-		return c.fallbackClassification(content)
+		return c.fallbackClassification(content, userID)
 	}
 
 	// Parse the structured response
@@ -98,7 +83,7 @@ Content: %s`, c.maxTags, content)
 		c.logger.Error("Failed to parse GPT response",
 			zap.Error(err),
 			zap.String("response", response))
-		return c.fallbackClassification(content)
+		return c.fallbackClassification(content, userID)
 	}
 
 	// Combine category and keywords for tags
@@ -115,9 +100,9 @@ Content: %s`, c.maxTags, content)
 }
 
 // Fallback to simple classification if GPT fails
-func (c *GPTClassifier) fallbackClassification(content string) []string {
+func (c *GPTClassifier) fallbackClassification(content string, userID int64) []string {
 	simpleClassifier := NewSimpleClassifier(0.7, c.maxTags)
-	return simpleClassifier.ClassifyContent(content)
+	return simpleClassifier.ClassifyContent(content, userID)
 }
 func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (string, error) {
 	// First check in-memory cache
@@ -141,7 +126,7 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 		c.threadMutex.Lock()
 		delete(c.threads, userID)
 		c.threadMutex.Unlock()
-		
+
 		if err := c.storage.DeleteThread(userID); err != nil {
 			c.logger.Error("Failed to delete invalid thread from storage",
 				zap.Error(err),
@@ -164,7 +149,7 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 				c.threadMutex.Lock()
 				c.threads[userID] = storedThreadID
 				c.threadMutex.Unlock()
-				
+
 				if err := c.storage.UpdateThreadLastUsed(userID); err != nil {
 					c.logger.Warn("Failed to update thread last used timestamp",
 						zap.Error(err),
