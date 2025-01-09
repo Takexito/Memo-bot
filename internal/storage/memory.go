@@ -8,16 +8,24 @@ import (
 	"github.com/xaenox/memo-bot/internal/models"
 )
 
+type threadInfo struct {
+	ThreadID    string
+	CreatedAt   time.Time
+	LastUsedAt  time.Time
+}
+
 type MemoryStorage struct {
-	mu     sync.RWMutex
-	notes  map[int64]models.Note
-	lastID int64
+	mu          sync.RWMutex
+	notes       map[int64]models.Note
+	lastID      int64
+	threads     map[int64]threadInfo
 }
 
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
-		notes:  make(map[int64]models.Note),
-		lastID: 0,
+		notes:   make(map[int64]models.Note),
+		lastID:  0,
+		threads: make(map[int64]threadInfo),
 	}
 }
 
@@ -88,6 +96,47 @@ func (s *MemoryStorage) UpdateNoteTags(noteID int64, tags []string) error {
 
 func (s *MemoryStorage) Close() error {
 	// Nothing to close for in-memory storage
+	return nil
+}
+
+func (s *MemoryStorage) GetThread(userID int64) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	
+	if thread, exists := s.threads[userID]; exists {
+		return thread.ThreadID, nil
+	}
+	return "", nil
+}
+
+func (s *MemoryStorage) SaveThread(userID int64, threadID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	s.threads[userID] = threadInfo{
+		ThreadID:    threadID,
+		CreatedAt:   time.Now(),
+		LastUsedAt:  time.Now(),
+	}
+	return nil
+}
+
+func (s *MemoryStorage) UpdateThreadLastUsed(userID int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	if thread, exists := s.threads[userID]; exists {
+		thread.LastUsedAt = time.Now()
+		s.threads[userID] = thread
+	}
+	return nil
+}
+
+func (s *MemoryStorage) DeleteThread(userID int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	delete(s.threads, userID)
 	return nil
 }
 
