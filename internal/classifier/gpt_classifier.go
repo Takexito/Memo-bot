@@ -10,6 +10,14 @@ import (
 	"go.uber.org/zap"
 )
 
+type GPTResponse struct {
+	Category            string   `json:"category"`
+	Keywords            []string `json:"keywords"`
+	Summary            string   `json:"summary"`
+	AttachmentsAnalysis string   `json:"attachments_analysis"`
+	Links              []string `json:"links"`
+}
+
 type GPTClassifier struct {
 	client      *openai.Client
 	model       string
@@ -33,11 +41,22 @@ func NewGPTClassifier(apiKey string, model string, maxTokens int, temperature fl
 func (c *GPTClassifier) ClassifyContent(content string) []string {
 	ctx := context.Background()
 
-	// Prepare the prompt for GPT
-	prompt := fmt.Sprintf(`Analyze the following content and extract relevant tags/categories. 
-The tags should be specific, relevant, and helpful for organizing and retrieving the content later.
-Return the tags as a JSON array of strings, with at most %d tags.
-Only return the JSON array, no other text.
+	// Update the prompt to request structured response
+	prompt := fmt.Sprintf(`Analyze the following content and provide a structured analysis with:
+- A single main category
+- Relevant keywords/tags (max %d)
+- A brief summary
+- Analysis of any attachments mentioned
+- Any URLs/links found in the content
+
+Return the response as a JSON object with this structure:
+{
+    "category": "main_category",
+    "keywords": ["keyword1", "keyword2", ...],
+    "summary": "brief_summary",
+    "attachments_analysis": "analysis_of_attachments",
+    "links": ["url1", "url2", ...]
+}
 
 Content: %s`, c.maxTags, content)
 
@@ -59,19 +78,23 @@ Content: %s`, c.maxTags, content)
 
 	if err != nil {
 		c.logger.Error("Failed to get GPT response", zap.Error(err))
-		// Fallback to simple classification if GPT fails
 		return c.fallbackClassification(content)
 	}
 
-	// Parse the response
-	var tags []string
+	// Parse the structured response
+	var gptResponse GPTResponse
 	response := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if err := json.Unmarshal([]byte(response), &tags); err != nil {
+	if err := json.Unmarshal([]byte(response), &gptResponse); err != nil {
 		c.logger.Error("Failed to parse GPT response",
 			zap.Error(err),
 			zap.String("response", response))
 		return c.fallbackClassification(content)
 	}
+
+	// Combine category and keywords for tags
+	tags := make([]string, 0, len(gptResponse.Keywords)+1)
+	tags = append(tags, strings.ToLower(gptResponse.Category))
+	tags = append(tags, gptResponse.Keywords...)
 
 	// Ensure we don't exceed maxTags
 	if len(tags) > c.maxTags {
