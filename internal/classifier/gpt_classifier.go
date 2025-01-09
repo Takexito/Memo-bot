@@ -109,3 +109,63 @@ func (c *GPTClassifier) fallbackClassification(content string) []string {
 	simpleClassifier := NewSimpleClassifier(0.7, c.maxTags)
 	return simpleClassifier.ClassifyContent(content)
 }
+func (c *GPTClassifier) GetStructuredAnalysis(content string) GPTResponse {
+	ctx := context.Background()
+
+	prompt := fmt.Sprintf(`Analyze the following content and provide a structured analysis with:
+- A single main category
+- Relevant keywords/tags (max %d)
+- A brief summary
+- Analysis of any attachments mentioned
+- Any URLs/links found in the content
+
+Return the response as a JSON object with this structure:
+{
+    "category": "main_category",
+    "keywords": ["keyword1", "keyword2", ...],
+    "summary": "brief_summary",
+    "attachments_analysis": "analysis_of_attachments",
+    "links": ["url1", "url2", ...]
+}
+
+Content: %s`, c.maxTags, content)
+
+	resp, err := c.client.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model: c.model,
+			Messages: []openai.ChatCompletionMessage{
+				{
+					Role:    openai.ChatMessageRoleUser,
+					Content: prompt,
+				},
+			},
+			MaxTokens:   c.maxTokens,
+			Temperature: float32(c.temperature),
+		},
+	)
+
+	if err != nil {
+		c.logger.Error("Failed to get GPT response", zap.Error(err))
+		return GPTResponse{
+			Category: "general",
+			Keywords: []string{"unclassified"},
+			Summary:  content,
+		}
+	}
+
+	var gptResponse GPTResponse
+	response := strings.TrimSpace(resp.Choices[0].Message.Content)
+	if err := json.Unmarshal([]byte(response), &gptResponse); err != nil {
+		c.logger.Error("Failed to parse GPT response",
+			zap.Error(err),
+			zap.String("response", response))
+		return GPTResponse{
+			Category: "general",
+			Keywords: []string{"unclassified"},
+			Summary:  content,
+		}
+	}
+
+	return gptResponse
+}

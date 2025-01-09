@@ -13,11 +13,11 @@ import (
 type Bot struct {
 	api        *tgbotapi.BotAPI
 	storage    storage.Storage
-	classifier classifier.Classifier
+	classifier *classifier.GPTClassifier
 	logger     *zap.Logger
 }
 
-func New(token string, storage storage.Storage, classifier classifier.Classifier, logger *zap.Logger) (*Bot, error) {
+func New(token string, storage storage.Storage, classifier *classifier.GPTClassifier, logger *zap.Logger) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create bot: %w", err)
@@ -93,19 +93,48 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		}
 	}
 
-	// Classify content and get tags
-	note.Tags = b.classifier.ClassifyContent(note.Content)
-
-	// Store the note
+	// Get structured analysis from GPT
+	analysis := b.classifier.GetStructuredAnalysis(note.Content)
+	
+	// Convert keywords and category to hashtags
+	hashtags := make([]string, 0, len(analysis.Keywords)+1)
+	hashtags = append(hashtags, "#"+strings.ToLower(analysis.Category))
+	for _, keyword := range analysis.Keywords {
+		hashtags = append(hashtags, "#"+strings.ToLower(strings.ReplaceAll(keyword, " ", "_")))
+	}
+	
+	// Store the note with the tags
+	note.Tags = append([]string{strings.ToLower(analysis.Category)}, analysis.Keywords...)
 	if err := b.storage.CreateNote(note); err != nil {
 		b.logger.Error("Failed to store note", zap.Error(err))
 		b.sendMessage(message.Chat.ID, "Sorry, failed to save your note. Please try again later.")
 		return
 	}
 
-	// Send confirmation with tags
-	response := fmt.Sprintf("Note saved with tags: %s", strings.Join(note.Tags, ", "))
-	b.sendMessage(message.Chat.ID, response)
+	// Format and send the response
+	response := fmt.Sprintf("📝 *Summary*: %s\n\n"+
+		"🏷 *Tags*: %s\n",
+		analysis.Summary,
+		strings.Join(hashtags, " "))
+
+	// Add attachments analysis if present
+	if analysis.AttachmentsAnalysis != "" {
+		response += fmt.Sprintf("\n📎 *Attachments*: %s", analysis.AttachmentsAnalysis)
+	}
+
+	// Add links if present
+	if len(analysis.Links) > 0 {
+		response += fmt.Sprintf("\n\n🔗 *Links*:\n%s", strings.Join(analysis.Links, "\n"))
+	}
+
+	// Send the formatted response with Markdown
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	msg.ParseMode = "Markdown"
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Error("Failed to send response",
+			zap.Error(err),
+			zap.Int64("chat_id", message.Chat.ID))
+	}
 }
 
 func (b *Bot) handleStart(message *tgbotapi.Message) {
