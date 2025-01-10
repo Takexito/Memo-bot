@@ -1,12 +1,17 @@
 package bot
 
 import (
-	"fmt"
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/xaenox/memo-bot/internal/classifier"
-	"github.com/xaenox/memo-bot/internal/storage"
-	"go.uber.org/zap"
-	"strings"
+    "context"
+    "fmt"
+    "strings"
+    "time"
+
+    tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+    "github.com/google/uuid"
+    "github.com/xaenox/memo-bot/internal/classifier"
+    "github.com/xaenox/memo-bot/internal/models"
+    "github.com/xaenox/memo-bot/internal/storage"
+    "go.uber.org/zap"
 )
 
 type Bot struct {
@@ -48,81 +53,64 @@ func (b *Bot) Start() error {
 }
 
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
-	// Handle commands
-	if message.IsCommand() {
-		switch message.Command() {
-		case "start":
-			b.handleStart(message)
-		case "help":
-			b.handleHelp(message)
-		case "tags":
-			b.handleTags(message)
-		case "categories":
-			b.handleCategories(message)
-		default:
-			b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
-		}
-		return
-	}
+    ctx := context.Background()
 
-	// Get content from message
-	content := message.Text
-	if message.Caption != "" {
-		content = message.Caption
-	}
+    // Handle commands
+    if message.IsCommand() {
+        b.handleCommand(ctx, message)
+        return
+    }
 
-	// Get GPT analysis response
-	gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
+    // Get content from message
+    content := message.Text
+    if message.Caption != "" {
+        content = message.Caption
+    }
 
-	// Save category and tags to user metadata
-	if err := b.storage.AddUserCategory(message.From.ID, gptResponse.Category); err != nil {
-		b.logger.Error("Failed to save category",
-			zap.Error(err),
-			zap.Int64("user_id", message.From.ID),
-			zap.String("category", gptResponse.Category))
-	}
+    // Create a new message ID
+    messageID := uuid.New().String()
 
-	// Save each keyword as a tag
-	for _, tag := range gptResponse.Keywords {
-		if err := b.storage.AddUserTag(message.From.ID, tag); err != nil {
-			b.logger.Error("Failed to save tag",
-				zap.Error(err),
-				zap.Int64("user_id", message.From.ID),
-				zap.String("tag", tag))
-		}
-	}
+    // Get GPT analysis response
+    gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
 
-	// Format and send the response
-	// Format category - add # and replace spaces with underscores
-	formattedCategory := "#" + strings.ReplaceAll(gptResponse.Category, " ", "_")
-	
-	// Format tags - add # and replace spaces with underscores
-	formattedTags := make([]string, len(gptResponse.Keywords))
-	for i, tag := range gptResponse.Keywords {
-		formattedTags[i] = "#" + strings.ReplaceAll(tag, " ", "_")
-	}
+    // Create and save the message
+    msg := &models.Message{
+        ID:        messageID,
+        UserID:    message.From.ID,
+        Content:   content,
+        Category:  gptResponse.Category,
+        Tags:      gptResponse.Keywords,
+        CreatedAt: time.Now(),
+    }
 
-	// Escape special characters for Markdown
-	formattedCategory = escapeMarkdown(formattedCategory)
-	formattedSummary := escapeMarkdown(gptResponse.Summary)
-	for i, tag := range formattedTags {
-		formattedTags[i] = escapeMarkdown(tag)
-	}
+    if err := b.storage.SaveMessage(ctx, msg); err != nil {
+        b.logger.Error("Failed to save message",
+            zap.Error(err),
+            zap.String("message_id", messageID),
+            zap.Int64("user_id", message.From.ID))
+        b.sendErrorMessage(message.Chat.ID, "Sorry, I couldn't save your message. Please try again.")
+        return
+    }
 
-	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
-		formattedCategory,
-		strings.Join(formattedTags, ", "),
-		formattedSummary)
+    // Update user metadata with new category and tags
+    if err := b.storage.AddCategory(ctx, message.From.ID, gptResponse.Category); err != nil {
+        b.logger.Error("Failed to save category",
+            zap.Error(err),
+            zap.Int64("user_id", message.From.ID),
+            zap.String("category", gptResponse.Category))
+    }
 
-	// Send the formatted response with MarkdownV2 and reply to the original message
-	msg := tgbotapi.NewMessage(message.Chat.ID, response)
-	msg.ParseMode = "MarkdownV2"
-	msg.ReplyToMessageID = message.MessageID
-	if _, err := b.api.Send(msg); err != nil {
-		b.logger.Error("Failed to send response",
-			zap.Error(err),
-			zap.Int64("chat_id", message.Chat.ID))
-	}
+    for _, tag := range gptResponse.Keywords {
+        if err := b.storage.AddTag(ctx, message.From.ID, tag); err != nil {
+            b.logger.Error("Failed to save tag",
+                zap.Error(err),
+                zap.Int64("user_id", message.From.ID),
+                zap.String("tag", tag))
+        }
+    }
+
+    // Send the response
+    b.sendClassificationResponse(message.Chat.ID, message.MessageID, &gptResponse)
 }
 
 func (b *Bot) handleStart(message *tgbotapi.Message) {
@@ -222,4 +210,100 @@ func (b *Bot) sendMessage(chatID int64, text string) {
 			zap.Error(err),
 			zap.Int64("chat_id", chatID))
 	}
+}
+func (b *Bot) handleCommand(ctx context.Context, message *tgbotapi.Message) {
+    switch message.Command() {
+    case "start":
+        b.handleStart(message)
+    case "help":
+        b.handleHelp(message)
+    case "tags":
+        b.handleTags(ctx, message)
+    case "categories":
+        b.handleCategories(ctx, message)
+    case "history":
+        b.handleHistory(ctx, message)
+    default:
+        b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
+    }
+}
+
+func (b *Bot) handleHistory(ctx context.Context, message *tgbotapi.Message) {
+    messages, err := b.storage.GetUserMessages(ctx, message.From.ID, 5, 0)
+    if err != nil {
+        b.logger.Error("Failed to get user messages",
+            zap.Error(err),
+            zap.Int64("user_id", message.From.ID))
+        b.sendErrorMessage(message.Chat.ID, "Sorry, I couldn't retrieve your message history.")
+        return
+    }
+
+    if len(messages) == 0 {
+        b.sendMessage(message.Chat.ID, "You don't have any messages yet.")
+        return
+    }
+
+    response := "*Your recent messages:*\n\n"
+    for _, msg := range messages {
+        response += fmt.Sprintf("*%s*\n", escapeMarkdown(msg.Category))
+        response += fmt.Sprintf("_%s_\n", escapeMarkdown(msg.Content))
+        if len(msg.Tags) > 0 {
+            tags := make([]string, len(msg.Tags))
+            for i, tag := range msg.Tags {
+                tags[i] = "#" + escapeMarkdown(strings.ReplaceAll(tag, " ", "_"))
+            }
+            response += fmt.Sprintf("Tags: %s\n", strings.Join(tags, " "))
+        }
+        response += "\n"
+    }
+
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ParseMode = "MarkdownV2"
+    if _, err := b.api.Send(msg); err != nil {
+        b.logger.Error("Failed to send history message",
+            zap.Error(err),
+            zap.Int64("chat_id", message.Chat.ID))
+    }
+}
+
+func (b *Bot) sendClassificationResponse(chatID int64, replyToID int, response *classifier.GPTResponse) {
+    // Format category and tags
+    formattedCategory := "#" + strings.ReplaceAll(response.Category, " ", "_")
+    formattedTags := make([]string, len(response.Keywords))
+    for i, tag := range response.Keywords {
+        formattedTags[i] = "#" + strings.ReplaceAll(tag, " ", "_")
+    }
+
+    // Escape special characters for Markdown
+    formattedCategory = escapeMarkdown(formattedCategory)
+    formattedSummary := escapeMarkdown(response.Summary)
+    for i, tag := range formattedTags {
+        formattedTags[i] = escapeMarkdown(tag)
+    }
+
+    // Build response message
+    text := fmt.Sprintf("*Category:* %s\n", formattedCategory)
+    if len(formattedTags) > 0 {
+        text += fmt.Sprintf("*Tags:* %s\n", strings.Join(formattedTags, " "))
+    }
+    text += fmt.Sprintf("\n*Summary:* %s", formattedSummary)
+
+    msg := tgbotapi.NewMessage(chatID, text)
+    msg.ParseMode = "MarkdownV2"
+    msg.ReplyToMessageID = replyToID
+
+    if _, err := b.api.Send(msg); err != nil {
+        b.logger.Error("Failed to send classification response",
+            zap.Error(err),
+            zap.Int64("chat_id", chatID))
+    }
+}
+
+func (b *Bot) sendErrorMessage(chatID int64, text string) {
+    msg := tgbotapi.NewMessage(chatID, "⚠️ "+text)
+    if _, err := b.api.Send(msg); err != nil {
+        b.logger.Error("Failed to send error message",
+            zap.Error(err),
+            zap.Int64("chat_id", chatID))
+    }
 }
