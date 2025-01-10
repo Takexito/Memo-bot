@@ -164,6 +164,11 @@ func (c *GPTClassifier) GetStructuredAnalysis(content string, userID int64) GPTR
 		return c.fallbackResponse(content)
 	}
 
+	// Add logging before sending content
+	c.logger.Debug("Sending content to GPT",
+		zap.String("content", content),
+		zap.String("thread_id", thread.ID))
+
 	// Add a message to the thread
 	_, err = c.client.CreateMessage(ctx, thread.ID, openai.MessageRequest{
 		Role:    "user",
@@ -224,6 +229,11 @@ func (c *GPTClassifier) GetStructuredAnalysis(content string, userID int64) GPTR
 		return c.fallbackResponse(content)
 	}
 
+	// Add logging for received response
+	c.logger.Debug("Received GPT response",
+		zap.String("thread_id", thread.ID),
+		zap.String("response", lastAssistantMessage))
+
 	// Parse the response
 	var gptResponse GPTResponse
 	if err := json.Unmarshal([]byte(lastAssistantMessage), &gptResponse); err != nil {
@@ -232,6 +242,10 @@ func (c *GPTClassifier) GetStructuredAnalysis(content string, userID int64) GPTR
 			zap.String("response", lastAssistantMessage))
 		return c.fallbackResponse(content)
 	}
+
+	// Add logging for parsed response
+	c.logger.Debug("Parsed GPT response",
+		zap.Any("structured_response", gptResponse))
 
 	// Clean up the thread (optional, depending on your needs)
 	_, err = c.client.DeleteThread(ctx, thread.ID)
