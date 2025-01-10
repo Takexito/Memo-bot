@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/xaenox/memo-bot/internal/models"
 	"github.com/xaenox/memo-bot/internal/storage"
 	"strings"
 	"sync"
@@ -144,7 +145,13 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 	c.threads[userID] = thread.ID
 	c.threadMutex.Unlock()
 
-	if err := c.storage.SaveThread(userID, thread.ID); err != nil {
+	threadModel := &models.Thread{
+		ID:         thread.ID,
+		UserID:     userID,
+		CreatedAt:  time.Now(),
+		LastUsedAt: time.Now(),
+	}
+	if err := c.storage.SaveThread(ctx, threadModel); err != nil {
 		c.logger.Error("Failed to save thread to storage",
 			zap.Error(err),
 			zap.Int64("user_id", userID),
