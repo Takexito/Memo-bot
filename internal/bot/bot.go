@@ -326,8 +326,8 @@ func escapeMarkdown(text string) string {
 }
 
 func (b *Bot) sendMessage(chatID int64, text string) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	if _, err := b.api.Send(msg); err != nil {
+	_, err := b.sender.SendMessage(chatID, text)
+	if err != nil {
 		b.logger.Error("Failed to send message",
 			zap.Error(err),
 			zap.Int64("chat_id", chatID),
@@ -336,8 +336,8 @@ func (b *Bot) sendMessage(chatID int64, text string) {
 }
 
 func (b *Bot) sendErrorMessage(chatID int64, text string) {
-	msg := tgbotapi.NewMessage(chatID, "⚠️ "+text)
-	if _, err := b.api.Send(msg); err != nil {
+	_, err := b.sender.SendMessage(chatID, "⚠️ "+text)
+	if err != nil {
 		b.logger.Error("Failed to send error message",
 			zap.Error(err),
 			zap.Int64("chat_id", chatID))
