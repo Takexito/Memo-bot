@@ -93,14 +93,17 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	}
 
 	// Format and send the response
-	// Add # to each keyword
+	// Format category - add # and replace spaces with underscores
+	formattedCategory := "#" + strings.ReplaceAll(gptResponse.Category, " ", "_")
+	
+	// Format tags - add # and replace spaces with underscores
 	formattedTags := make([]string, len(gptResponse.Keywords))
 	for i, tag := range gptResponse.Keywords {
-		formattedTags[i] = "#" + tag
+		formattedTags[i] = "#" + strings.ReplaceAll(tag, " ", "_")
 	}
 
 	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
-		gptResponse.Category,
+		formattedCategory,
 		strings.Join(formattedTags, ", "),
 		gptResponse.Summary)
 
@@ -160,7 +163,7 @@ func (b *Bot) handleTags(message *tgbotapi.Message) {
 
 	response := "Your tags:\n"
 	for _, tag := range metadata.Tags {
-		response += fmt.Sprintf("#%s\n", tag)
+		response += fmt.Sprintf("#%s\n", strings.ReplaceAll(tag, " ", "_"))
 	}
 
 	b.sendMessage(message.Chat.ID, response)
@@ -183,7 +186,7 @@ func (b *Bot) handleCategories(message *tgbotapi.Message) {
 
 	response := "Your categories:\n"
 	for _, category := range metadata.Categories {
-		response += fmt.Sprintf("📁 %s\n", category)
+		response += fmt.Sprintf("#%s\n", strings.ReplaceAll(category, " ", "_"))
 	}
 
 	b.sendMessage(message.Chat.ID, response)
