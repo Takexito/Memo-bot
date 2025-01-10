@@ -134,6 +134,27 @@ func (p *PostgresStorage) UpdateUser(ctx context.Context, user *models.User) err
 
 
 
+func (p *PostgresStorage) SaveMessage(ctx context.Context, msg *models.Message) error {
+    if msg == nil {
+        return fmt.Errorf("%w: message cannot be nil", ErrInvalidInput)
+    }
+
+    query := `
+        INSERT INTO messages (id, user_id, content, category, tags, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)`
+
+    _, err := p.db.ExecContext(ctx, query,
+        msg.ID,
+        msg.UserID,
+        msg.Content,
+        msg.Category,
+        pq.Array(msg.Tags),
+        msg.CreatedAt,
+    )
+
+    return p.handleError(err, "SaveMessage")
+}
+
 func (p *PostgresStorage) GetUserMessages(ctx context.Context, userID int64, limit int, offset int) ([]*models.Message, error) {
     query := `
         SELECT id, user_id, content, category, tags, created_at

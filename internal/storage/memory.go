@@ -195,6 +195,18 @@ func (s *MemoryStorage) DeleteMessage(ctx context.Context, id string) error {
     return nil
 }
 
+func (s *MemoryStorage) SaveMessage(ctx context.Context, msg *models.Message) error {
+    if msg == nil {
+        return fmt.Errorf("message cannot be nil")
+    }
+
+    s.mu.Lock()
+    defer s.mu.Unlock()
+
+    s.messages[msg.ID] = msg
+    return nil
+}
+
 func (s *MemoryStorage) GetUserMessages(ctx context.Context, userID int64, limit int, offset int) ([]*models.Message, error) {
     s.mu.RLock()
     defer s.mu.RUnlock()
