@@ -19,6 +19,86 @@ type MessageSender interface {
 	SendReplyMessage(chatID int64, text string, replyToID int) (tgbotapi.Message, error)
 }
 
+func (b *Bot) handleAddCategory(ctx context.Context, message *tgbotapi.Message) {
+	args := strings.Fields(message.CommandArguments())
+	if len(args) == 0 {
+		b.sendMessage(message.Chat.ID, "Please provide a category name.\nUsage: /addcategory <category_name>")
+		return
+	}
+
+	category := strings.ToLower(args[0])
+	if err := b.storage.AddCategory(ctx, message.From.ID, category); err != nil {
+		b.logger.Error("Failed to add category",
+			zap.Error(err),
+			zap.Int64("user_id", message.From.ID),
+			zap.String("category", category))
+		b.sendErrorMessage(message.Chat.ID, "Failed to add category. Please try again.")
+		return
+	}
+
+	response := fmt.Sprintf("Added category: #%s", escapeMarkdown(category))
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	msg.ParseMode = "MarkdownV2"
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Error("Failed to send add category confirmation",
+			zap.Error(err),
+			zap.Int64("chat_id", message.Chat.ID))
+	}
+}
+
+func (b *Bot) handleRemoveCategory(ctx context.Context, message *tgbotapi.Message) {
+	args := strings.Fields(message.CommandArguments())
+	if len(args) == 0 {
+		b.sendMessage(message.Chat.ID, "Please provide a category name.\nUsage: /removecategory <category_name>")
+		return
+	}
+
+	category := strings.ToLower(args[0])
+	if err := b.storage.RemoveCategory(ctx, message.From.ID, category); err != nil {
+		b.logger.Error("Failed to remove category",
+			zap.Error(err),
+			zap.Int64("user_id", message.From.ID),
+			zap.String("category", category))
+		b.sendErrorMessage(message.Chat.ID, "Failed to remove category. Please try again.")
+		return
+	}
+
+	response := fmt.Sprintf("Removed category: #%s", escapeMarkdown(category))
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	msg.ParseMode = "MarkdownV2"
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Error("Failed to send remove category confirmation",
+			zap.Error(err),
+			zap.Int64("chat_id", message.Chat.ID))
+	}
+}
+
+func (b *Bot) handleMaxTags(ctx context.Context, message *tgbotapi.Message) {
+	args := strings.Fields(message.CommandArguments())
+	if len(args) == 0 {
+		b.sendMessage(message.Chat.ID, "Please provide the maximum number of tags.\nUsage: /maxtags <number>")
+		return
+	}
+
+	maxTags, err := strconv.Atoi(args[0])
+	if err != nil || maxTags < 1 {
+		b.sendMessage(message.Chat.ID, "Please provide a valid positive number.")
+		return
+	}
+
+	if err := b.storage.UpdateUserMaxTags(ctx, message.From.ID, maxTags); err != nil {
+		b.logger.Error("Failed to update max tags",
+			zap.Error(err),
+			zap.Int64("user_id", message.From.ID),
+			zap.Int("max_tags", maxTags))
+		b.sendErrorMessage(message.Chat.ID, "Failed to update maximum tags. Please try again.")
+		return
+	}
+
+	response := fmt.Sprintf("Updated maximum tags to: %d", maxTags)
+	b.sendMessage(message.Chat.ID, response)
+}
+
 type TelegramMessageSender struct {
 	api *tgbotapi.BotAPI
 }
@@ -201,7 +281,15 @@ func (b *Bot) handleHelp(message *tgbotapi.Message) {
 /help \- Show this help message
 /tags \- Show your tags
 /categories \- Show your categories
+/addcategory \- Add a new category
+/removecategory \- Remove a category
+/maxtags \- Set maximum number of tags per message
 /history \- View recent messages
+
+*Usage:*
+/addcategory <category\_name>
+/removecategory <category\_name>
+/maxtags <number>
 
 *I can process:*
 • Text messages
@@ -330,6 +418,12 @@ func (b *Bot) handleCommand(ctx context.Context, message *tgbotapi.Message) {
 		b.handleTags(ctx, message)
 	case "categories":
 		b.handleCategories(ctx, message)
+	case "addcategory":
+		b.handleAddCategory(ctx, message)
+	case "removecategory":
+		b.handleRemoveCategory(ctx, message) 
+	case "maxtags":
+		b.handleMaxTags(ctx, message)
 	default:
 		b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
 	}

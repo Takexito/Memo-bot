@@ -37,6 +37,8 @@ type UserStorage interface {
 	GetUser(ctx context.Context, id int64) (*models.User, error)
 	UpdateUser(ctx context.Context, user *models.User) error
 	AddCategory(ctx context.Context, userID int64, category string) error
+	RemoveCategory(ctx context.Context, userID int64, category string) error
+	UpdateUserMaxTags(ctx context.Context, userID int64, maxTags int) error
 	AddTag(ctx context.Context, userID int64, tag string) error
 	GetUserCategories(ctx context.Context, userID int64) ([]string, error)
 	GetUserTags(ctx context.Context, userID int64) ([]string, error)

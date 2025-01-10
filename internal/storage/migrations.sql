@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS user_metadata (
     thread_id VARCHAR(255),
     categories TEXT[] DEFAULT '{}',
     tags TEXT[] DEFAULT '{}',
+    max_tags INTEGER DEFAULT 5,
     last_used_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

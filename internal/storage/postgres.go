@@ -267,6 +267,55 @@ func (p *PostgresStorage) GetUserTags(ctx context.Context, userID int64) ([]stri
 	return tags, nil
 }
 
+func (p *PostgresStorage) RemoveCategory(ctx context.Context, userID int64, category string) error {
+	query := `
+		UPDATE user_metadata 
+		SET categories = array_remove(categories, $2)
+		WHERE user_id = $1`
+
+	result, err := p.db.ExecContext(ctx, query, userID, category)
+	if err != nil {
+		return p.handleError(err, "RemoveCategory")
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return p.handleError(err, "RemoveCategory")
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (p *PostgresStorage) UpdateUserMaxTags(ctx context.Context, userID int64, maxTags int) error {
+	query := `
+		UPDATE user_metadata 
+		SET max_tags = $2
+		WHERE user_id = $1`
+
+	result, err := p.db.ExecContext(ctx, query, userID, maxTags)
+	if err != nil {
+		return p.handleError(err, "UpdateUserMaxTags")
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return p.handleError(err, "UpdateUserMaxTags")
+	}
+	if rows == 0 {
+		// Insert if not exists
+		query = `
+			INSERT INTO user_metadata (user_id, max_tags)
+			VALUES ($1, $2)`
+		_, err = p.db.ExecContext(ctx, query, userID, maxTags)
+		if err != nil {
+			return p.handleError(err, "UpdateUserMaxTags")
+		}
+	}
+	return nil
+}
+
 func (p *PostgresStorage) GetThread(ctx context.Context, userID int64) (*models.Thread, error) {
 	query := `
         SELECT id, user_id, created_at, last_used_at
