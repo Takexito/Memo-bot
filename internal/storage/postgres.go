@@ -103,24 +103,33 @@ func (p *PostgresStorage) GetUser(ctx context.Context, id int64) (*models.User, 
     return user, nil
 }
 
-func (p *PostgresStorage) UpdateUserMetadata(metadata *UserMetadata) error {
-	query := `
-		INSERT INTO user_metadata (user_id, thread_id, categories, tags, last_used_at)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (user_id) DO UPDATE SET
-			thread_id = EXCLUDED.thread_id,
-			categories = EXCLUDED.categories,
-			tags = EXCLUDED.tags,
-			last_used_at = EXCLUDED.last_used_at`
+func (p *PostgresStorage) UpdateUser(ctx context.Context, user *models.User) error {
+    // Input validation
+    if user == nil {
+        return fmt.Errorf("%w: user cannot be nil", ErrInvalidInput)
+    }
+    if user.ID == 0 {
+        return fmt.Errorf("%w: user_id cannot be zero", ErrInvalidInput)
+    }
 
-	_, err := p.db.Exec(query,
-		metadata.UserID,
-		metadata.ThreadID,
-		pq.Array(metadata.Categories),
-		pq.Array(metadata.Tags),
-		time.Now(),
-	)
-	return err
+    query := `
+        INSERT INTO user_metadata (user_id, thread_id, categories, tags, last_used_at)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (user_id) DO UPDATE SET
+            thread_id = EXCLUDED.thread_id,
+            categories = EXCLUDED.categories,
+            tags = EXCLUDED.tags,
+            last_used_at = EXCLUDED.last_used_at`
+
+    _, err := p.db.ExecContext(ctx, query,
+        user.ID,
+        user.ThreadID,
+        pq.Array(user.Categories),
+        pq.Array(user.Tags),
+        user.LastUsedAt,
+    )
+    
+    return p.handleError(err, "UpdateUser")
 }
 
 func (p *PostgresStorage) AddUserCategory(userID int64, category string) error {
