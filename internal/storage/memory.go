@@ -1,30 +1,25 @@
 package storage
 
 import (
-	"fmt"
 	"sync"
 	"time"
-
-	"github.com/xaenox/memo-bot/internal/models"
 )
 
 type threadInfo struct {
-	ThreadID    string
-	CreatedAt   time.Time
-	LastUsedAt  time.Time
+	ThreadID   string
+	CreatedAt  time.Time
+	LastUsedAt time.Time
 }
 
 type MemoryStorage struct {
-	mu          sync.RWMutex
-	notes       map[int64]models.Note
-	lastID      int64
-	userMeta    map[int64]*UserMetadata
-	threads     map[int64]threadInfo
+	mu       sync.RWMutex
+	lastID   int64
+	userMeta map[int64]*UserMetadata
+	threads  map[int64]threadInfo
 }
 
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
-		notes:    make(map[int64]models.Note),
 		lastID:   0,
 		userMeta: make(map[int64]*UserMetadata),
 		threads:  make(map[int64]threadInfo),
@@ -109,71 +104,6 @@ func (s *MemoryStorage) AddUserTag(userID int64, tag string) error {
 	return nil
 }
 
-func (s *MemoryStorage) CreateNote(note *models.Note) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.lastID++
-	note.ID = s.lastID
-	note.CreatedAt = time.Now()
-	note.UpdatedAt = note.CreatedAt
-
-	s.notes[note.ID] = *note
-	return nil
-}
-
-func (s *MemoryStorage) GetNotesByUserID(userID int64) ([]*models.Note, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var result []*models.Note
-	for _, note := range s.notes {
-		if note.UserID == userID {
-			result = append(result, &note)
-		}
-	}
-
-	// Sort by created_at DESC (newest first)
-	sortNotesByCreatedAt(result)
-	return result, nil
-}
-
-func (s *MemoryStorage) GetNotesByTag(userID int64, tag string) ([]*models.Note, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var result []*models.Note
-	for _, note := range s.notes {
-		if note.UserID == userID {
-			for _, t := range note.Tags {
-				if t == tag {
-					result = append(result, &note)
-					break
-				}
-			}
-		}
-	}
-
-	// Sort by created_at DESC (newest first)
-	sortNotesByCreatedAt(result)
-	return result, nil
-}
-
-func (s *MemoryStorage) UpdateNoteTags(noteID int64, tags []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	note, exists := s.notes[noteID]
-	if !exists {
-		return fmt.Errorf("note with id %d not found", noteID)
-	}
-
-	note.Tags = tags
-	note.UpdatedAt = time.Now()
-	s.notes[noteID] = note
-	return nil
-}
-
 func (s *MemoryStorage) Close() error {
 	// Nothing to close for in-memory storage
 	return nil
@@ -182,7 +112,7 @@ func (s *MemoryStorage) Close() error {
 func (s *MemoryStorage) GetThread(userID int64) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	if thread, exists := s.threads[userID]; exists {
 		return thread.ThreadID, nil
 	}
@@ -192,11 +122,11 @@ func (s *MemoryStorage) GetThread(userID int64) (string, error) {
 func (s *MemoryStorage) SaveThread(userID int64, threadID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	s.threads[userID] = threadInfo{
-		ThreadID:    threadID,
-		CreatedAt:   time.Now(),
-		LastUsedAt:  time.Now(),
+		ThreadID:   threadID,
+		CreatedAt:  time.Now(),
+		LastUsedAt: time.Now(),
 	}
 	return nil
 }
@@ -204,7 +134,7 @@ func (s *MemoryStorage) SaveThread(userID int64, threadID string) error {
 func (s *MemoryStorage) UpdateThreadLastUsed(userID int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if thread, exists := s.threads[userID]; exists {
 		thread.LastUsedAt = time.Now()
 		s.threads[userID] = thread
@@ -215,22 +145,7 @@ func (s *MemoryStorage) UpdateThreadLastUsed(userID int64) error {
 func (s *MemoryStorage) DeleteThread(userID int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	delete(s.threads, userID)
 	return nil
-}
-
-// Helper function to sort notes by created_at in descending order
-func sortNotesByCreatedAt(notes []*models.Note) {
-	if len(notes) <= 1 {
-		return
-	}
-
-	for i := 0; i < len(notes)-1; i++ {
-		for j := i + 1; j < len(notes); j++ {
-			if notes[i].CreatedAt.Before(notes[j].CreatedAt) {
-				notes[i], notes[j] = notes[j], notes[i]
-			}
-		}
-	}
 }

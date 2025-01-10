@@ -5,8 +5,6 @@ import (
 	"embed"
 	"fmt"
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
-	"github.com/xaenox/memo-bot/internal/models"
 	"time"
 )
 
@@ -142,110 +140,6 @@ func (s *PostgresStorage) initializeSchema() error {
 	return nil
 }
 
-func (p *PostgresStorage) CreateNote(note *models.Note) error {
-	query := `
-        INSERT INTO notes (user_id, content, type, tags, file_id, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-        RETURNING id`
-
-	return p.db.QueryRow(
-		query,
-		note.UserID,
-		note.Content,
-		note.Type,
-		pq.Array(note.Tags), // Wrap tags with pq.Array
-		note.FileID,
-	).Scan(&note.ID)
-}
-
-func (p *PostgresStorage) GetNotesByUserID(userID int64) ([]*models.Note, error) {
-	query := `SELECT id, user_id, content, type, tags, file_id, created_at, updated_at 
-              FROM notes WHERE user_id = $1 
-              ORDER BY created_at DESC LIMIT 10`
-
-	rows, err := p.db.Query(query, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var notes []*models.Note
-	for rows.Next() {
-		note := &models.Note{}
-		err := rows.Scan(
-			&note.ID,
-			&note.UserID,
-			&note.Content,
-			&note.Type,
-			pq.Array(&note.Tags), // Wrap tags with pq.Array
-			&note.FileID,
-			&note.CreatedAt,
-			&note.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		notes = append(notes, note)
-	}
-	return notes, rows.Err()
-}
-
-func (p *PostgresStorage) GetNotesByTag(userID int64, tag string) ([]*models.Note, error) {
-	query := `SELECT id, user_id, content, type, tags, file_id, created_at, updated_at 
-              FROM notes 
-              WHERE user_id = $1 AND $2 = ANY(tags)
-              ORDER BY created_at DESC LIMIT 10`
-
-	rows, err := p.db.Query(query, userID, tag)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var notes []*models.Note
-	for rows.Next() {
-		note := &models.Note{}
-		err := rows.Scan(
-			&note.ID,
-			&note.UserID,
-			&note.Content,
-			&note.Type,
-			pq.Array(&note.Tags), // Wrap tags with pq.Array
-			&note.FileID,
-			&note.CreatedAt,
-			&note.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		notes = append(notes, note)
-	}
-	return notes, rows.Err()
-}
-
-func (s *PostgresStorage) UpdateNoteTags(noteID int64, tags []string) error {
-	query := `
-		UPDATE notes
-		SET tags = $1, updated_at = $2
-		WHERE id = $3`
-
-	result, err := s.db.Exec(query, tags, time.Now(), noteID)
-	if err != nil {
-		return fmt.Errorf("error updating note tags: %v", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("error getting rows affected: %v", err)
-	}
-
-	if rowsAffected == 0 {
-		return fmt.Errorf("note not found")
-	}
-
-	return nil
-}
-
 func (s *PostgresStorage) Close() error {
 	return s.db.Close()
 }
@@ -256,7 +150,7 @@ func (p *PostgresStorage) GetThread(userID int64) (string, error) {
 		SELECT thread_id 
 		FROM assistant_threads 
 		WHERE user_id = $1`, userID).Scan(&threadID)
-	
+
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
