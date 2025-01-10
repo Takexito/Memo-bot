@@ -31,7 +31,7 @@ type GPTClassifier struct {
 	logger      *zap.Logger
 	threads     map[int64]string // In-memory cache
 	threadMutex sync.RWMutex
-	storage     storage.ThreadStorage
+	storage     storage.ThreadStorage // Interface from storage package
 }
 
 func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens int, temperature float64, maxTags int, storage storage.ThreadStorage, logger *zap.Logger) *GPTClassifier {
