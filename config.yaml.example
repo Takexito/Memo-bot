@@ -16,6 +16,7 @@ classifier:
 
 openai:
   api_key: "YOUR_OPENAI_API_KEY"  # Get this from platform.openai.com
+  assistant_id: "ASSISTANT_ID"    # Get this from platform.openai.com
   model: "gpt-3.5-turbo"         # Or use "gpt-4" for better results
   max_tokens: 150                # Increase for longer responses
   temperature: 0.3               # Adjust between 0-1 for creativity vs precision 

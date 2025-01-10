@@ -50,20 +50,20 @@ func NewGPTClassifier(apiKey string, assistantID string, model string, maxTokens
 }
 
 func (c *GPTClassifier) ClassifyContent(content string, userID int64) []string {
-    // Get the structured analysis
-    analysis := c.GetStructuredAnalysis(content, userID)
-    
-    // Combine category and keywords for tags
-    tags := make([]string, 0, len(analysis.Keywords)+1)
-    tags = append(tags, strings.ToLower(analysis.Category))
-    tags = append(tags, analysis.Keywords...)
+	// Get the structured analysis
+	analysis := c.GetStructuredAnalysis(content, userID)
 
-    // Ensure we don't exceed maxTags
-    if len(tags) > c.maxTags {
-        tags = tags[:c.maxTags]
-    }
+	// Combine category and keywords for tags
+	tags := make([]string, 0, len(analysis.Keywords)+1)
+	tags = append(tags, strings.ToLower(analysis.Category))
+	tags = append(tags, analysis.Keywords...)
 
-    return tags
+	// Ensure we don't exceed maxTags
+	if len(tags) > c.maxTags {
+		tags = tags[:c.maxTags]
+	}
+
+	return tags
 }
 
 // Fallback to simple classification if GPT fails
@@ -209,7 +209,7 @@ func (c *GPTClassifier) GetStructuredAnalysis(content string, userID int64) GPTR
 	}
 
 	// Get the messages
-	messages, err := c.client.ListMessage(ctx, thread.ID, nil, nil, nil, nil)
+	messages, err := c.client.ListMessage(ctx, thread.ID, nil, nil, nil, nil, nil)
 	if err != nil {
 		c.logger.Error("Failed to list messages", zap.Error(err))
 		return c.fallbackResponse(content)
