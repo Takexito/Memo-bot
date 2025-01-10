@@ -30,29 +30,77 @@ type PostgresStorage struct {
 	logger *zap.Logger
 }
 
+func (p *PostgresStorage) handleError(err error, operation string) error {
+    if err == nil {
+        return nil
+    }
+
+    // Log the error with context
+    p.logger.Error("database error",
+        zap.Error(err),
+        zap.String("operation", operation))
+
+    // Handle specific postgres errors
+    if pqErr, ok := err.(*pq.Error); ok {
+        switch pqErr.Code {
+        case "23505": // unique_violation
+            return fmt.Errorf("%w: %v", ErrDuplicate, err)
+        case "23503": // foreign_key_violation
+            return fmt.Errorf("%w: %v", ErrConstraint, err)
+        case "23502": // not_null_violation
+            return fmt.Errorf("%w: invalid input - %v", ErrInvalidInput, err)
+        case "08000", "08003", "08006", "08001", "08004": // connection errors
+            return fmt.Errorf("%w: %v", ErrConnection, err)
+        }
+        return fmt.Errorf("%w: %v", ErrDatabase, err)
+    }
+
+    // Handle other common errors
+    switch {
+    case err == sql.ErrNoRows:
+        return ErrNotFound
+    case err == sql.ErrTxDone:
+        return fmt.Errorf("%w: transaction already closed", ErrTransaction)
+    case err == sql.ErrConnDone:
+        return fmt.Errorf("%w: connection already closed", ErrConnection)
+    }
+
+    // Generic database error
+    return fmt.Errorf("%w: %v", ErrDatabase, err)
+}
+
 // User-related methods
 func (p *PostgresStorage) GetUser(ctx context.Context, id int64) (*models.User, error) {
-	query := `
-		SELECT user_id, thread_id, categories, tags, last_used_at
-		FROM user_metadata
-		WHERE user_id = $1`
+    if id == 0 {
+        return nil, fmt.Errorf("%w: user_id cannot be zero", ErrInvalidInput)
+    }
 
-	user := &models.User{ID: id}
-	err := p.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID,
-		&user.ThreadID,
-		pq.Array(&user.Categories),
-		pq.Array(&user.Tags),
-		&user.LastUsedAt,
-	)
+    query := `
+        SELECT user_id, thread_id, categories, tags, last_used_at
+        FROM user_metadata
+        WHERE user_id = $1`
 
-	if err == sql.ErrNoRows {
-		return &models.User{
-			ID:         id,
-			LastUsedAt: time.Now(),
-		}, nil
-	}
-	return user, err
+    user := &models.User{ID: id}
+    err := p.db.QueryRowContext(ctx, query, id).Scan(
+        &user.ID,
+        &user.ThreadID,
+        pq.Array(&user.Categories),
+        pq.Array(&user.Tags),
+        &user.LastUsedAt,
+    )
+
+    if err == sql.ErrNoRows {
+        return &models.User{
+            ID:         id,
+            LastUsedAt: time.Now(),
+        }, nil
+    }
+    
+    if err != nil {
+        return nil, p.handleError(err, "GetUser")
+    }
+    
+    return user, nil
 }
 
 func (p *PostgresStorage) UpdateUserMetadata(metadata *UserMetadata) error {
@@ -152,6 +200,22 @@ func (s *PostgresStorage) initializeSchema() error {
 
 func (s *PostgresStorage) Close() error {
 	return s.db.Close()
+}
+
+func (p *PostgresStorage) CheckHealth(ctx context.Context) error {
+    // Check if connection is alive
+    err := p.db.PingContext(ctx)
+    if err != nil {
+        return p.handleError(err, "CheckHealth")
+    }
+
+    // Optional: Check if we can perform a simple query
+    _, err = p.db.ExecContext(ctx, "SELECT 1")
+    if err != nil {
+        return p.handleError(err, "CheckHealth")
+    }
+
+    return nil
 }
 
 func (p *PostgresStorage) GetThread(userID int64) (string, error) {

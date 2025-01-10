@@ -10,7 +10,20 @@ var (
     ErrNotFound      = errors.New("record not found")
     ErrAlreadyExists = errors.New("record already exists")
     ErrInvalidInput  = errors.New("invalid input")
+    ErrDatabase      = errors.New("database error")
+    ErrDuplicate     = errors.New("duplicate record")
+    ErrConnection    = errors.New("database connection error")
+    ErrTransaction   = errors.New("transaction error")
+    ErrConstraint    = errors.New("constraint violation")
 )
+
+// IsDatabaseError checks if an error is a database-related error
+func IsDatabaseError(err error) bool {
+    return errors.Is(err, ErrDatabase) ||
+           errors.Is(err, ErrConnection) ||
+           errors.Is(err, ErrTransaction) ||
+           errors.Is(err, ErrConstraint)
+}
 
 // Storage combines all storage interfaces
 type Storage interface {
