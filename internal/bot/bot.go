@@ -56,8 +56,8 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 			b.handleStart(message)
 		case "help":
 			b.handleHelp(message)
-		case "list":
-			b.handleList(message)
+		case "tags":
+			b.handleTags(message)
 		default:
 			b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
@@ -134,8 +134,7 @@ func (b *Bot) handleHelp(message *tgbotapi.Message) {
 	help := `Available commands:
 /start - Start the bot
 /help - Show this help message
-/list - List your recent notes
-/list #tag - List notes with specific tag
+/tags - Show your tags
 
 You can send:
 - Text messages
@@ -148,45 +147,27 @@ I'll automatically classify your content and add relevant tags!`
 	b.sendMessage(message.Chat.ID, help)
 }
 
-func (b *Bot) handleList(message *tgbotapi.Message) {
-	args := strings.Fields(message.Text)
-	var notes []*models.Note
-	var err error
-
-	if len(args) > 1 && strings.HasPrefix(args[1], "#") {
-		// List notes by tag
-		tag := strings.TrimPrefix(args[1], "#")
-		notes, err = b.storage.GetNotesByTag(message.From.ID, tag)
-	} else {
-		// List all notes
-		notes, err = b.storage.GetNotesByUserID(message.From.ID)
-	}
-
+func (b *Bot) handleTags(message *tgbotapi.Message) {
+	metadata, err := b.storage.GetUserMetadata(message.From.ID)
 	if err != nil {
-		b.logger.Error("Failed to get notes", zap.Error(err))
-		b.sendMessage(message.Chat.ID, "Sorry, failed to retrieve your notes. Please try again later.")
+		b.logger.Error("Failed to get user metadata",
+			zap.Error(err),
+			zap.Int64("user_id", message.From.ID))
+		b.sendMessage(message.Chat.ID, "Sorry, failed to retrieve your tags. Please try again later.")
 		return
 	}
 
-	if len(notes) == 0 {
-		b.sendMessage(message.Chat.ID, "No notes found.")
+	if len(metadata.Tags) == 0 {
+		b.sendMessage(message.Chat.ID, "You don't have any tags yet.")
 		return
 	}
 
-	// Format and send notes
-	var response strings.Builder
-	for i, note := range notes {
-		if i >= 10 {
-			response.WriteString("\n... and more notes.")
-			break
-		}
-
-		response.WriteString(fmt.Sprintf("\n📝 %s\nTags: %s\n",
-			note.Content,
-			strings.Join(note.Tags, ", ")))
+	response := "Your tags:\n"
+	for _, tag := range metadata.Tags {
+		response += fmt.Sprintf("#%s\n", tag)
 	}
 
-	b.sendMessage(message.Chat.ID, response.String())
+	b.sendMessage(message.Chat.ID, response)
 }
 
 func (b *Bot) sendMessage(chatID int64, text string) {
