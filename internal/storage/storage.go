@@ -19,6 +19,9 @@ type Storage interface {
     AddUserCategory(userID int64, category string) error
     AddUserTag(userID int64, tag string) error
     Close() error
+
+    // Embed ThreadStorage interface
+    ThreadStorage
 }
 
 type ThreadStorage interface {
