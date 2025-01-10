@@ -14,6 +14,14 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	errMsgGeneral    = "Sorry, something went wrong. Please try again later."
+	errMsgSave       = "Sorry, I couldn't save your message. Please try again."
+	errMsgRetrieval  = "Sorry, I couldn't retrieve the information. Please try again later."
+	errMsgClassify   = "Sorry, I had trouble analyzing your message. Please try again."
+	errMsgPermission = "Sorry, you don't have permission to do that."
+)
+
 type Bot struct {
 	api        *tgbotapi.BotAPI
 	storage    storage.Storage
@@ -72,6 +80,12 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 
 	// Get GPT analysis response
 	gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
+	if gptResponse.Category == "" {
+		b.logger.Error("Failed to get GPT analysis",
+			zap.Int64("user_id", message.From.ID))
+		b.sendErrorMessage(message.Chat.ID, errMsgClassify)
+		return
+	}
 
 	// Create and save the message
 	msg := &models.Message{
@@ -184,13 +198,12 @@ Need help? Just send /help again\!`
 }
 
 func (b *Bot) handleTags(ctx context.Context, message *tgbotapi.Message) {
-	// Get user tags from storage
 	tags, err := b.storage.GetUserTags(ctx, message.From.ID)
 	if err != nil {
 		b.logger.Error("Failed to get user tags",
 			zap.Error(err),
 			zap.Int64("user_id", message.From.ID))
-		b.sendErrorMessage(message.Chat.ID, "Sorry, failed to retrieve your tags. Please try again later.")
+		b.sendErrorMessage(message.Chat.ID, errMsgRetrieval)
 		return
 	}
 
@@ -211,17 +224,17 @@ func (b *Bot) handleTags(ctx context.Context, message *tgbotapi.Message) {
 		b.logger.Error("Failed to send tags message",
 			zap.Error(err),
 			zap.Int64("chat_id", message.Chat.ID))
+		b.sendErrorMessage(message.Chat.ID, errMsgGeneral)
 	}
 }
 
 func (b *Bot) handleCategories(ctx context.Context, message *tgbotapi.Message) {
-	// Get user categories from storage
 	categories, err := b.storage.GetUserCategories(ctx, message.From.ID)
 	if err != nil {
 		b.logger.Error("Failed to get user categories",
 			zap.Error(err),
 			zap.Int64("user_id", message.From.ID))
-		b.sendErrorMessage(message.Chat.ID, "Sorry, failed to retrieve your categories. Please try again later.")
+		b.sendErrorMessage(message.Chat.ID, errMsgRetrieval)
 		return
 	}
 
@@ -242,6 +255,7 @@ func (b *Bot) handleCategories(ctx context.Context, message *tgbotapi.Message) {
 		b.logger.Error("Failed to send categories message",
 			zap.Error(err),
 			zap.Int64("chat_id", message.Chat.ID))
+		b.sendErrorMessage(message.Chat.ID, errMsgGeneral)
 	}
 }
 
@@ -296,7 +310,7 @@ func (b *Bot) handleHistory(ctx context.Context, message *tgbotapi.Message) {
 		b.logger.Error("Failed to get user messages",
 			zap.Error(err),
 			zap.Int64("user_id", message.From.ID))
-		b.sendErrorMessage(message.Chat.ID, "Sorry, I couldn't retrieve your message history.")
+		b.sendErrorMessage(message.Chat.ID, errMsgRetrieval)
 		return
 	}
 
@@ -325,6 +339,7 @@ func (b *Bot) handleHistory(ctx context.Context, message *tgbotapi.Message) {
 		b.logger.Error("Failed to send history message",
 			zap.Error(err),
 			zap.Int64("chat_id", message.Chat.ID))
+		b.sendErrorMessage(message.Chat.ID, errMsgGeneral)
 	}
 }
 
