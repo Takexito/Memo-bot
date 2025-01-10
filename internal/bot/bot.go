@@ -4,7 +4,6 @@ import (
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/xaenox/memo-bot/internal/classifier"
-	"github.com/xaenox/memo-bot/internal/models"
 	"github.com/xaenox/memo-bot/internal/storage"
 	"go.uber.org/zap"
 	"strings"
@@ -49,47 +48,47 @@ func (b *Bot) Start() error {
 }
 
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
-    // Handle commands
-    if message.IsCommand() {
-        switch message.Command() {
-        case "start":
-            b.handleStart(message)
-        case "help":
-            b.handleHelp(message)
-        case "tags":
-            b.handleTags(message)
-        case "categories":
-            b.handleCategories(message)
-        default:
-            b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
-        }
-        return
-    }
+	// Handle commands
+	if message.IsCommand() {
+		switch message.Command() {
+		case "start":
+			b.handleStart(message)
+		case "help":
+			b.handleHelp(message)
+		case "tags":
+			b.handleTags(message)
+		case "categories":
+			b.handleCategories(message)
+		default:
+			b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
+		}
+		return
+	}
 
-    // Get content from message
-    content := message.Text
-    if message.Caption != "" {
-        content = message.Caption
-    }
+	// Get content from message
+	content := message.Text
+	if message.Caption != "" {
+		content = message.Caption
+	}
 
-    // Get GPT analysis response
-    gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
+	// Get GPT analysis response
+	gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
 
-    // Format and send the response
-    response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
-        gptResponse.Category,
-        strings.Join(gptResponse.Keywords, ", "),
-        gptResponse.Summary)
+	// Format and send the response
+	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
+		gptResponse.Category,
+		strings.Join(gptResponse.Keywords, ", "),
+		gptResponse.Summary)
 
-    // Send the formatted response with Markdown and reply to the original message
-    msg := tgbotapi.NewMessage(message.Chat.ID, response)
-    msg.ParseMode = "Markdown"
-    msg.ReplyToMessageID = message.MessageID
-    if _, err := b.api.Send(msg); err != nil {
-        b.logger.Error("Failed to send response",
-            zap.Error(err),
-            zap.Int64("chat_id", message.Chat.ID))
-    }
+	// Send the formatted response with Markdown and reply to the original message
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	msg.ParseMode = "Markdown"
+	msg.ReplyToMessageID = message.MessageID
+	if _, err := b.api.Send(msg); err != nil {
+		b.logger.Error("Failed to send response",
+			zap.Error(err),
+			zap.Int64("chat_id", message.Chat.ID))
+	}
 }
 
 func (b *Bot) handleStart(message *tgbotapi.Message) {
@@ -144,26 +143,26 @@ func (b *Bot) handleTags(message *tgbotapi.Message) {
 }
 
 func (b *Bot) handleCategories(message *tgbotapi.Message) {
-    metadata, err := b.storage.GetUserMetadata(message.From.ID)
-    if err != nil {
-        b.logger.Error("Failed to get user metadata",
-            zap.Error(err),
-            zap.Int64("user_id", message.From.ID))
-        b.sendMessage(message.Chat.ID, "Sorry, failed to retrieve your categories. Please try again later.")
-        return
-    }
+	metadata, err := b.storage.GetUserMetadata(message.From.ID)
+	if err != nil {
+		b.logger.Error("Failed to get user metadata",
+			zap.Error(err),
+			zap.Int64("user_id", message.From.ID))
+		b.sendMessage(message.Chat.ID, "Sorry, failed to retrieve your categories. Please try again later.")
+		return
+	}
 
-    if len(metadata.Categories) == 0 {
-        b.sendMessage(message.Chat.ID, "You don't have any categories yet.")
-        return
-    }
+	if len(metadata.Categories) == 0 {
+		b.sendMessage(message.Chat.ID, "You don't have any categories yet.")
+		return
+	}
 
-    response := "Your categories:\n"
-    for _, category := range metadata.Categories {
-        response += fmt.Sprintf("📁 %s\n", category)
-    }
+	response := "Your categories:\n"
+	for _, category := range metadata.Categories {
+		response += fmt.Sprintf("📁 %s\n", category)
+	}
 
-    b.sendMessage(message.Chat.ID, response)
+	b.sendMessage(message.Chat.ID, response)
 }
 
 func (b *Bot) sendMessage(chatID int64, text string) {
