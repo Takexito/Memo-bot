@@ -82,7 +82,7 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 		_, err := c.client.RetrieveThread(ctx, threadID)
 		if err == nil {
 			// Update last used timestamp
-			if err := c.storage.UpdateThreadLastUsed(userID); err != nil {
+			if err := c.storage.UpdateThreadLastUsed(ctx, userID); err != nil {
 				c.logger.Warn("Failed to update thread last used timestamp",
 					zap.Error(err),
 					zap.Int64("user_id", userID))
@@ -94,7 +94,7 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 		delete(c.threads, userID)
 		c.threadMutex.Unlock()
 
-		if err := c.storage.DeleteThread(userID); err != nil {
+		if err := c.storage.DeleteThread(ctx, userID); err != nil {
 			c.logger.Error("Failed to delete invalid thread from storage",
 				zap.Error(err),
 				zap.Int64("user_id", userID))
@@ -103,29 +103,29 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 
 	// Check storage if not in cache
 	if !exists {
-		storedThreadID, err := c.storage.GetThread(userID)
+		storedThread, err := c.storage.GetThread(ctx, userID)
 		if err != nil {
 			c.logger.Error("Failed to get thread from storage",
 				zap.Error(err),
 				zap.Int64("user_id", userID))
-		} else if storedThreadID != "" {
+		} else if storedThread.ID != "" {
 			// Verify stored thread is still valid
-			_, err := c.client.RetrieveThread(ctx, storedThreadID)
+			_, err := c.client.RetrieveThread(ctx, storedThread.ID)
 			if err == nil {
 				// Update cache and last used timestamp
 				c.threadMutex.Lock()
-				c.threads[userID] = storedThreadID
+				c.threads[userID] = storedThread.ID
 				c.threadMutex.Unlock()
 
-				if err := c.storage.UpdateThreadLastUsed(userID); err != nil {
+				if err := c.storage.UpdateThreadLastUsed(ctx, userID); err != nil {
 					c.logger.Warn("Failed to update thread last used timestamp",
 						zap.Error(err),
 						zap.Int64("user_id", userID))
 				}
-				return storedThreadID, nil
+				return storedThread.ID, nil
 			}
 			// Thread invalid, delete from storage
-			if err := c.storage.DeleteThread(userID); err != nil {
+			if err := c.storage.DeleteThread(ctx, userID); err != nil {
 				c.logger.Error("Failed to delete invalid thread from storage",
 					zap.Error(err),
 					zap.Int64("user_id", userID))
