@@ -134,6 +134,44 @@ func (p *PostgresStorage) UpdateUser(ctx context.Context, user *models.User) err
 
 
 
+func (p *PostgresStorage) GetUserMessages(ctx context.Context, userID int64, limit int, offset int) ([]*models.Message, error) {
+    query := `
+        SELECT id, user_id, content, category, tags, created_at
+        FROM messages
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3`
+
+    rows, err := p.db.QueryContext(ctx, query, userID, limit, offset)
+    if err != nil {
+        return nil, p.handleError(err, "GetUserMessages")
+    }
+    defer rows.Close()
+
+    var messages []*models.Message
+    for rows.Next() {
+        var msg models.Message
+        err := rows.Scan(
+            &msg.ID,
+            &msg.UserID,
+            &msg.Content,
+            &msg.Category,
+            pq.Array(&msg.Tags),
+            &msg.CreatedAt,
+        )
+        if err != nil {
+            return nil, p.handleError(err, "GetUserMessages")
+        }
+        messages = append(messages, &msg)
+    }
+
+    if err = rows.Err(); err != nil {
+        return nil, p.handleError(err, "GetUserMessages")
+    }
+
+    return messages, nil
+}
+
 func NewPostgresStorage(config DatabaseConfig, logger *zap.Logger) (*PostgresStorage, error) {
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)

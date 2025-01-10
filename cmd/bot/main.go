@@ -35,7 +35,7 @@ func main() {
 			SSLMode:     cfg.Database.SSLMode,
 			UseInMemory: cfg.Database.UseInMemory,
 		}
-		store, err = storage.NewPostgresStorage(dbConfig)
+		store, err = storage.NewPostgresStorage(dbConfig, logger)
 		if err != nil {
 			logger.Fatal("Failed to initialize storage", zap.Error(err))
 		}
