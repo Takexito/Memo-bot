@@ -27,6 +27,81 @@ type PostgresStorage struct {
 	db *sql.DB
 }
 
+func (p *PostgresStorage) GetUserMetadata(userID int64) (*UserMetadata, error) {
+	query := `
+		SELECT user_id, thread_id, categories, tags, last_used_at
+		FROM user_metadata
+		WHERE user_id = $1`
+
+	metadata := &UserMetadata{UserID: userID}
+	err := p.db.QueryRow(query, userID).Scan(
+		&metadata.UserID,
+		&metadata.ThreadID,
+		pq.Array(&metadata.Categories),
+		pq.Array(&metadata.Tags),
+		&metadata.LastUsedAt,
+	)
+
+	if err == sql.ErrNoRows {
+		// Initialize new metadata if not exists
+		metadata.LastUsedAt = time.Now()
+		return metadata, nil
+	}
+	return metadata, err
+}
+
+func (p *PostgresStorage) UpdateUserMetadata(metadata *UserMetadata) error {
+	query := `
+		INSERT INTO user_metadata (user_id, thread_id, categories, tags, last_used_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (user_id) DO UPDATE SET
+			thread_id = EXCLUDED.thread_id,
+			categories = EXCLUDED.categories,
+			tags = EXCLUDED.tags,
+			last_used_at = EXCLUDED.last_used_at`
+
+	_, err := p.db.Exec(query,
+		metadata.UserID,
+		metadata.ThreadID,
+		pq.Array(metadata.Categories),
+		pq.Array(metadata.Tags),
+		time.Now(),
+	)
+	return err
+}
+
+func (p *PostgresStorage) AddUserCategory(userID int64, category string) error {
+	query := `
+		INSERT INTO user_metadata (user_id, categories, last_used_at)
+		VALUES ($1, ARRAY[$2], NOW())
+		ON CONFLICT (user_id) DO UPDATE SET
+			categories = array_append(
+				array_remove(user_metadata.categories, $2),
+				$2
+			),
+			last_used_at = NOW()
+		WHERE NOT ($2 = ANY(user_metadata.categories))`
+
+	_, err := p.db.Exec(query, userID, category)
+	return err
+}
+
+func (p *PostgresStorage) AddUserTag(userID int64, tag string) error {
+	query := `
+		INSERT INTO user_metadata (user_id, tags, last_used_at)
+		VALUES ($1, ARRAY[$2], NOW())
+		ON CONFLICT (user_id) DO UPDATE SET
+			tags = array_append(
+				array_remove(user_metadata.tags, $2),
+				$2
+			),
+			last_used_at = NOW()
+		WHERE NOT ($2 = ANY(user_metadata.tags))`
+
+	_, err := p.db.Exec(query, userID, tag)
+	return err
+}
+
 func NewPostgresStorage(config DatabaseConfig) (*PostgresStorage, error) {
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)

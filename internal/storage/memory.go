@@ -18,15 +18,93 @@ type MemoryStorage struct {
 	mu          sync.RWMutex
 	notes       map[int64]models.Note
 	lastID      int64
-	threads     map[int64]threadInfo
+	userMeta    map[int64]*UserMetadata
 }
 
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
-		notes:   make(map[int64]models.Note),
-		lastID:  0,
-		threads: make(map[int64]threadInfo),
+		notes:    make(map[int64]models.Note),
+		lastID:   0,
+		userMeta: make(map[int64]*UserMetadata),
 	}
+}
+
+func (s *MemoryStorage) GetUserMetadata(userID int64) (*UserMetadata, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if meta, exists := s.userMeta[userID]; exists {
+		return meta, nil
+	}
+
+	// Initialize new metadata if not exists
+	return &UserMetadata{
+		UserID:     userID,
+		LastUsedAt: time.Now(),
+	}, nil
+}
+
+func (s *MemoryStorage) UpdateUserMetadata(metadata *UserMetadata) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	metadata.LastUsedAt = time.Now()
+	s.userMeta[metadata.UserID] = metadata
+	return nil
+}
+
+func (s *MemoryStorage) AddUserCategory(userID int64, category string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	meta, exists := s.userMeta[userID]
+	if !exists {
+		meta = &UserMetadata{
+			UserID:     userID,
+			Categories: []string{},
+			Tags:       []string{},
+			LastUsedAt: time.Now(),
+		}
+	}
+
+	// Check if category already exists
+	for _, c := range meta.Categories {
+		if c == category {
+			return nil
+		}
+	}
+
+	meta.Categories = append(meta.Categories, category)
+	meta.LastUsedAt = time.Now()
+	s.userMeta[userID] = meta
+	return nil
+}
+
+func (s *MemoryStorage) AddUserTag(userID int64, tag string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	meta, exists := s.userMeta[userID]
+	if !exists {
+		meta = &UserMetadata{
+			UserID:     userID,
+			Categories: []string{},
+			Tags:       []string{},
+			LastUsedAt: time.Now(),
+		}
+	}
+
+	// Check if tag already exists
+	for _, t := range meta.Tags {
+		if t == tag {
+			return nil
+		}
+	}
+
+	meta.Tags = append(meta.Tags, tag)
+	meta.LastUsedAt = time.Now()
+	s.userMeta[userID] = meta
+	return nil
 }
 
 func (s *MemoryStorage) CreateNote(note *models.Note) error {
