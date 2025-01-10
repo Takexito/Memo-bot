@@ -132,37 +132,7 @@ func (p *PostgresStorage) UpdateUser(ctx context.Context, user *models.User) err
     return p.handleError(err, "UpdateUser")
 }
 
-func (p *PostgresStorage) AddUserCategory(userID int64, category string) error {
-	query := `
-		INSERT INTO user_metadata (user_id, categories, last_used_at)
-		VALUES ($1, ARRAY[$2], NOW())
-		ON CONFLICT (user_id) DO UPDATE SET
-			categories = array_append(
-				array_remove(user_metadata.categories, $2),
-				$2
-			),
-			last_used_at = NOW()
-		WHERE NOT ($2 = ANY(user_metadata.categories))`
 
-	_, err := p.db.Exec(query, userID, category)
-	return err
-}
-
-func (p *PostgresStorage) AddUserTag(userID int64, tag string) error {
-	query := `
-		INSERT INTO user_metadata (user_id, tags, last_used_at)
-		VALUES ($1, ARRAY[$2], NOW())
-		ON CONFLICT (user_id) DO UPDATE SET
-			tags = array_append(
-				array_remove(user_metadata.tags, $2),
-				$2
-			),
-			last_used_at = NOW()
-		WHERE NOT ($2 = ANY(user_metadata.tags))`
-
-	_, err := p.db.Exec(query, userID, tag)
-	return err
-}
 
 func NewPostgresStorage(config DatabaseConfig, logger *zap.Logger) (*PostgresStorage, error) {
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -227,39 +197,8 @@ func (p *PostgresStorage) CheckHealth(ctx context.Context) error {
     return nil
 }
 
-func (p *PostgresStorage) GetThread(userID int64) (string, error) {
-	var threadID string
-	err := p.db.QueryRow(`
-		SELECT thread_id 
-		FROM assistant_threads 
-		WHERE user_id = $1`, userID).Scan(&threadID)
 
-	if err == sql.ErrNoRows {
-		return "", nil
-	}
-	return threadID, err
-}
 
-func (p *PostgresStorage) SaveThread(userID int64, threadID string) error {
-	_, err := p.db.Exec(`
-		INSERT INTO assistant_threads (user_id, thread_id)
-		VALUES ($1, $2)
-		ON CONFLICT (user_id) 
-		DO UPDATE SET 
-			thread_id = EXCLUDED.thread_id,
-			last_used_at = CURRENT_TIMESTAMP`,
-		userID, threadID)
-	return err
-}
-
-func (p *PostgresStorage) UpdateThreadLastUsed(userID int64) error {
-	_, err := p.db.Exec(`
-		UPDATE assistant_threads 
-		SET last_used_at = CURRENT_TIMESTAMP
-		WHERE user_id = $1`,
-		userID)
-	return err
-}
 
 func (p *PostgresStorage) GetMessageByID(ctx context.Context, id string) (*models.Message, error) {
     query := `
