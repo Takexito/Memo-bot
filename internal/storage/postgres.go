@@ -31,88 +31,88 @@ type PostgresStorage struct {
 }
 
 func (p *PostgresStorage) handleError(err error, operation string) error {
-    if err == nil {
-        return nil
-    }
+	if err == nil {
+		return nil
+	}
 
-    // Log the error with context
-    p.logger.Error("database error",
-        zap.Error(err),
-        zap.String("operation", operation))
+	// Log the error with context
+	p.logger.Error("database error",
+		zap.Error(err),
+		zap.String("operation", operation))
 
-    // Handle specific postgres errors
-    if pqErr, ok := err.(*pq.Error); ok {
-        switch pqErr.Code {
-        case "23505": // unique_violation
-            return fmt.Errorf("%w: %v", ErrDuplicate, err)
-        case "23503": // foreign_key_violation
-            return fmt.Errorf("%w: %v", ErrConstraint, err)
-        case "23502": // not_null_violation
-            return fmt.Errorf("%w: invalid input - %v", ErrInvalidInput, err)
-        case "08000", "08003", "08006", "08001", "08004": // connection errors
-            return fmt.Errorf("%w: %v", ErrConnection, err)
-        }
-        return fmt.Errorf("%w: %v", ErrDatabase, err)
-    }
+	// Handle specific postgres errors
+	if pqErr, ok := err.(*pq.Error); ok {
+		switch pqErr.Code {
+		case "23505": // unique_violation
+			return fmt.Errorf("%w: %v", ErrDuplicate, err)
+		case "23503": // foreign_key_violation
+			return fmt.Errorf("%w: %v", ErrConstraint, err)
+		case "23502": // not_null_violation
+			return fmt.Errorf("%w: invalid input - %v", ErrInvalidInput, err)
+		case "08000", "08003", "08006", "08001", "08004": // connection errors
+			return fmt.Errorf("%w: %v", ErrConnection, err)
+		}
+		return fmt.Errorf("%w: %v", ErrDatabase, err)
+	}
 
-    // Handle other common errors
-    switch {
-    case err == sql.ErrNoRows:
-        return ErrNotFound
-    case err == sql.ErrTxDone:
-        return fmt.Errorf("%w: transaction already closed", ErrTransaction)
-    case err == sql.ErrConnDone:
-        return fmt.Errorf("%w: connection already closed", ErrConnection)
-    }
+	// Handle other common errors
+	switch {
+	case err == sql.ErrNoRows:
+		return ErrNotFound
+	case err == sql.ErrTxDone:
+		return fmt.Errorf("%w: transaction already closed", ErrTransaction)
+	case err == sql.ErrConnDone:
+		return fmt.Errorf("%w: connection already closed", ErrConnection)
+	}
 
-    // Generic database error
-    return fmt.Errorf("%w: %v", ErrDatabase, err)
+	// Generic database error
+	return fmt.Errorf("%w: %v", ErrDatabase, err)
 }
 
 // User-related methods
 func (p *PostgresStorage) GetUser(ctx context.Context, id int64) (*models.User, error) {
-    if id == 0 {
-        return nil, fmt.Errorf("%w: user_id cannot be zero", ErrInvalidInput)
-    }
+	if id == 0 {
+		return nil, fmt.Errorf("%w: user_id cannot be zero", ErrInvalidInput)
+	}
 
-    query := `
+	query := `
         SELECT user_id, thread_id, categories, tags, last_used_at
         FROM user_metadata
         WHERE user_id = $1`
 
-    user := &models.User{ID: id}
-    err := p.db.QueryRowContext(ctx, query, id).Scan(
-        &user.ID,
-        &user.ThreadID,
-        pq.Array(&user.Categories),
-        pq.Array(&user.Tags),
-        &user.LastUsedAt,
-    )
+	user := &models.User{ID: id}
+	err := p.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.ThreadID,
+		pq.Array(&user.Categories),
+		pq.Array(&user.Tags),
+		&user.LastUsedAt,
+	)
 
-    if err == sql.ErrNoRows {
-        return &models.User{
-            ID:         id,
-            LastUsedAt: time.Now(),
-        }, nil
-    }
-    
-    if err != nil {
-        return nil, p.handleError(err, "GetUser")
-    }
-    
-    return user, nil
+	if err == sql.ErrNoRows {
+		return &models.User{
+			ID:         id,
+			LastUsedAt: time.Now(),
+		}, nil
+	}
+
+	if err != nil {
+		return nil, p.handleError(err, "GetUser")
+	}
+
+	return user, nil
 }
 
 func (p *PostgresStorage) UpdateUser(ctx context.Context, user *models.User) error {
-    // Input validation
-    if user == nil {
-        return fmt.Errorf("%w: user cannot be nil", ErrInvalidInput)
-    }
-    if user.ID == 0 {
-        return fmt.Errorf("%w: user_id cannot be zero", ErrInvalidInput)
-    }
+	// Input validation
+	if user == nil {
+		return fmt.Errorf("%w: user cannot be nil", ErrInvalidInput)
+	}
+	if user.ID == 0 {
+		return fmt.Errorf("%w: user_id cannot be zero", ErrInvalidInput)
+	}
 
-    query := `
+	query := `
         INSERT INTO user_metadata (user_id, thread_id, categories, tags, last_used_at)
         VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (user_id) DO UPDATE SET
@@ -121,76 +121,15 @@ func (p *PostgresStorage) UpdateUser(ctx context.Context, user *models.User) err
             tags = EXCLUDED.tags,
             last_used_at = EXCLUDED.last_used_at`
 
-    _, err := p.db.ExecContext(ctx, query,
-        user.ID,
-        user.ThreadID,
-        pq.Array(user.Categories),
-        pq.Array(user.Tags),
-        user.LastUsedAt,
-    )
-    
-    return p.handleError(err, "UpdateUser")
-}
+	_, err := p.db.ExecContext(ctx, query,
+		user.ID,
+		user.ThreadID,
+		pq.Array(user.Categories),
+		pq.Array(user.Tags),
+		user.LastUsedAt,
+	)
 
-
-
-func (p *PostgresStorage) SaveMessage(ctx context.Context, msg *models.Message) error {
-    if msg == nil {
-        return fmt.Errorf("%w: message cannot be nil", ErrInvalidInput)
-    }
-
-    query := `
-        INSERT INTO messages (id, user_id, content, category, tags, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)`
-
-    _, err := p.db.ExecContext(ctx, query,
-        msg.ID,
-        msg.UserID,
-        msg.Content,
-        msg.Category,
-        pq.Array(msg.Tags),
-        msg.CreatedAt,
-    )
-
-    return p.handleError(err, "SaveMessage")
-}
-
-func (p *PostgresStorage) GetUserMessages(ctx context.Context, userID int64, limit int, offset int) ([]*models.Message, error) {
-    query := `
-        SELECT id, user_id, content, category, tags, created_at
-        FROM messages
-        WHERE user_id = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3`
-
-    rows, err := p.db.QueryContext(ctx, query, userID, limit, offset)
-    if err != nil {
-        return nil, p.handleError(err, "GetUserMessages")
-    }
-    defer rows.Close()
-
-    var messages []*models.Message
-    for rows.Next() {
-        var msg models.Message
-        err := rows.Scan(
-            &msg.ID,
-            &msg.UserID,
-            &msg.Content,
-            &msg.Category,
-            pq.Array(&msg.Tags),
-            &msg.CreatedAt,
-        )
-        if err != nil {
-            return nil, p.handleError(err, "GetUserMessages")
-        }
-        messages = append(messages, &msg)
-    }
-
-    if err = rows.Err(); err != nil {
-        return nil, p.handleError(err, "GetUserMessages")
-    }
-
-    return messages, nil
+	return p.handleError(err, "UpdateUser")
 }
 
 func NewPostgresStorage(config DatabaseConfig, logger *zap.Logger) (*PostgresStorage, error) {
@@ -208,7 +147,7 @@ func NewPostgresStorage(config DatabaseConfig, logger *zap.Logger) (*PostgresSto
 	}
 
 	storage := &PostgresStorage{
-		db: db,
+		db:     db,
 		logger: logger,
 	}
 
@@ -241,71 +180,23 @@ func (s *PostgresStorage) Close() error {
 }
 
 func (p *PostgresStorage) CheckHealth(ctx context.Context) error {
-    // Check if connection is alive
-    err := p.db.PingContext(ctx)
-    if err != nil {
-        return p.handleError(err, "CheckHealth")
-    }
+	// Check if connection is alive
+	err := p.db.PingContext(ctx)
+	if err != nil {
+		return p.handleError(err, "CheckHealth")
+	}
 
-    // Optional: Check if we can perform a simple query
-    _, err = p.db.ExecContext(ctx, "SELECT 1")
-    if err != nil {
-        return p.handleError(err, "CheckHealth")
-    }
+	// Optional: Check if we can perform a simple query
+	_, err = p.db.ExecContext(ctx, "SELECT 1")
+	if err != nil {
+		return p.handleError(err, "CheckHealth")
+	}
 
-    return nil
-}
-
-
-
-
-func (p *PostgresStorage) GetMessageByID(ctx context.Context, id string) (*models.Message, error) {
-    query := `
-        SELECT id, user_id, content, category, tags, created_at
-        FROM messages
-        WHERE id = $1`
-
-    var msg models.Message
-    err := p.db.QueryRowContext(ctx, query, id).Scan(
-        &msg.ID,
-        &msg.UserID,
-        &msg.Content,
-        &msg.Category,
-        pq.Array(&msg.Tags),
-        &msg.CreatedAt,
-    )
-
-    if err == sql.ErrNoRows {
-        return nil, ErrNotFound
-    }
-    if err != nil {
-        return nil, fmt.Errorf("failed to get message: %w", err)
-    }
-    return &msg, nil
-}
-
-func (p *PostgresStorage) DeleteMessage(ctx context.Context, id string) error {
-    result, err := p.db.ExecContext(ctx, `
-        DELETE FROM messages 
-        WHERE id = $1`,
-        id,
-    )
-    if err != nil {
-        return fmt.Errorf("failed to delete message: %w", err)
-    }
-
-    rows, err := result.RowsAffected()
-    if err != nil {
-        return fmt.Errorf("failed to get affected rows: %w", err)
-    }
-    if rows == 0 {
-        return ErrNotFound
-    }
-    return nil
+	return nil
 }
 
 func (p *PostgresStorage) AddCategory(ctx context.Context, userID int64, category string) error {
-    query := `
+	query := `
         INSERT INTO user_metadata (user_id, categories, last_used_at)
         VALUES ($1, ARRAY[$2], NOW())
         ON CONFLICT (user_id) DO UPDATE SET
@@ -316,15 +207,15 @@ func (p *PostgresStorage) AddCategory(ctx context.Context, userID int64, categor
             last_used_at = NOW()
         WHERE NOT ($2 = ANY(user_metadata.categories))`
 
-    _, err := p.db.ExecContext(ctx, query, userID, category)
-    if err != nil {
-        return fmt.Errorf("failed to add category: %w", err)
-    }
-    return nil
+	_, err := p.db.ExecContext(ctx, query, userID, category)
+	if err != nil {
+		return fmt.Errorf("failed to add category: %w", err)
+	}
+	return nil
 }
 
 func (p *PostgresStorage) AddTag(ctx context.Context, userID int64, tag string) error {
-    query := `
+	query := `
         INSERT INTO user_metadata (user_id, tags, last_used_at)
         VALUES ($1, ARRAY[$2], NOW())
         ON CONFLICT (user_id) DO UPDATE SET
@@ -335,72 +226,72 @@ func (p *PostgresStorage) AddTag(ctx context.Context, userID int64, tag string) 
             last_used_at = NOW()
         WHERE NOT ($2 = ANY(user_metadata.tags))`
 
-    _, err := p.db.ExecContext(ctx, query, userID, tag)
-    if err != nil {
-        return fmt.Errorf("failed to add tag: %w", err)
-    }
-    return nil
+	_, err := p.db.ExecContext(ctx, query, userID, tag)
+	if err != nil {
+		return fmt.Errorf("failed to add tag: %w", err)
+	}
+	return nil
 }
 
 func (p *PostgresStorage) GetUserCategories(ctx context.Context, userID int64) ([]string, error) {
-    query := `
+	query := `
         SELECT categories
         FROM user_metadata
         WHERE user_id = $1`
 
-    var categories []string
-    err := p.db.QueryRowContext(ctx, query, userID).Scan(pq.Array(&categories))
-    if err == sql.ErrNoRows {
-        return []string{}, nil
-    }
-    if err != nil {
-        return nil, fmt.Errorf("failed to get user categories: %w", err)
-    }
-    return categories, nil
+	var categories []string
+	err := p.db.QueryRowContext(ctx, query, userID).Scan(pq.Array(&categories))
+	if err == sql.ErrNoRows {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user categories: %w", err)
+	}
+	return categories, nil
 }
 
 func (p *PostgresStorage) GetUserTags(ctx context.Context, userID int64) ([]string, error) {
-    query := `
+	query := `
         SELECT tags
         FROM user_metadata
         WHERE user_id = $1`
 
-    var tags []string
-    err := p.db.QueryRowContext(ctx, query, userID).Scan(pq.Array(&tags))
-    if err == sql.ErrNoRows {
-        return []string{}, nil
-    }
-    if err != nil {
-        return nil, fmt.Errorf("failed to get user tags: %w", err)
-    }
-    return tags, nil
+	var tags []string
+	err := p.db.QueryRowContext(ctx, query, userID).Scan(pq.Array(&tags))
+	if err == sql.ErrNoRows {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user tags: %w", err)
+	}
+	return tags, nil
 }
 
 func (p *PostgresStorage) GetThread(ctx context.Context, userID int64) (*models.Thread, error) {
-    query := `
+	query := `
         SELECT id, user_id, created_at, last_used_at
         FROM threads
         WHERE user_id = $1`
 
-    var thread models.Thread
-    err := p.db.QueryRowContext(ctx, query, userID).Scan(
-        &thread.ID,
-        &thread.UserID,
-        &thread.CreatedAt,
-        &thread.LastUsedAt,
-    )
+	var thread models.Thread
+	err := p.db.QueryRowContext(ctx, query, userID).Scan(
+		&thread.ID,
+		&thread.UserID,
+		&thread.CreatedAt,
+		&thread.LastUsedAt,
+	)
 
-    if err == sql.ErrNoRows {
-        return nil, nil
-    }
-    if err != nil {
-        return nil, fmt.Errorf("failed to get thread: %w", err)
-    }
-    return &thread, nil
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get thread: %w", err)
+	}
+	return &thread, nil
 }
 
 func (p *PostgresStorage) SaveThread(ctx context.Context, thread *models.Thread) error {
-    query := `
+	query := `
         INSERT INTO threads (id, user_id, created_at, last_used_at)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (user_id) DO UPDATE SET
@@ -408,55 +299,55 @@ func (p *PostgresStorage) SaveThread(ctx context.Context, thread *models.Thread)
             created_at = EXCLUDED.created_at,
             last_used_at = EXCLUDED.last_used_at`
 
-    _, err := p.db.ExecContext(ctx, query,
-        thread.ID,
-        thread.UserID,
-        thread.CreatedAt,
-        thread.LastUsedAt,
-    )
-    if err != nil {
-        return fmt.Errorf("failed to save thread: %w", err)
-    }
-    return nil
+	_, err := p.db.ExecContext(ctx, query,
+		thread.ID,
+		thread.UserID,
+		thread.CreatedAt,
+		thread.LastUsedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save thread: %w", err)
+	}
+	return nil
 }
 
 func (p *PostgresStorage) UpdateThreadLastUsed(ctx context.Context, userID int64) error {
-    query := `
+	query := `
         UPDATE threads
         SET last_used_at = NOW()
         WHERE user_id = $1`
 
-    result, err := p.db.ExecContext(ctx, query, userID)
-    if err != nil {
-        return fmt.Errorf("failed to update thread last used: %w", err)
-    }
+	result, err := p.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update thread last used: %w", err)
+	}
 
-    rows, err := result.RowsAffected()
-    if err != nil {
-        return fmt.Errorf("failed to get affected rows: %w", err)
-    }
-    if rows == 0 {
-        return ErrNotFound
-    }
-    return nil
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (p *PostgresStorage) DeleteThread(ctx context.Context, userID int64) error {
-    result, err := p.db.ExecContext(ctx, `
+	result, err := p.db.ExecContext(ctx, `
         DELETE FROM threads 
         WHERE user_id = $1`,
-        userID,
-    )
-    if err != nil {
-        return fmt.Errorf("failed to delete thread: %w", err)
-    }
+		userID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete thread: %w", err)
+	}
 
-    rows, err := result.RowsAffected()
-    if err != nil {
-        return fmt.Errorf("failed to get affected rows: %w", err)
-    }
-    if rows == 0 {
-        return ErrNotFound
-    }
-    return nil
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get affected rows: %w", err)
+	}
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

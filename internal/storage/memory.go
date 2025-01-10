@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"sort"
 	"github.com/xaenox/memo-bot/internal/models"
 	"sync"
 	"time"
@@ -181,69 +180,4 @@ func (s *MemoryStorage) DeleteThread(ctx context.Context, userID int64) error {
 
 	delete(s.threads, userID)
 	return nil
-}
-
-func (s *MemoryStorage) GetMessageByID(ctx context.Context, id string) (*models.Message, error) {
-    s.mu.RLock()
-    defer s.mu.RUnlock()
-
-    msg, exists := s.messages[id]
-    if !exists {
-        return nil, ErrNotFound
-    }
-
-    return msg, nil
-}
-
-func (s *MemoryStorage) DeleteMessage(ctx context.Context, id string) error {
-    s.mu.Lock()
-    defer s.mu.Unlock()
-
-    if _, exists := s.messages[id]; !exists {
-        return ErrNotFound
-    }
-
-    delete(s.messages, id)
-    return nil
-}
-
-func (s *MemoryStorage) SaveMessage(ctx context.Context, msg *models.Message) error {
-    if msg == nil {
-        return fmt.Errorf("message cannot be nil")
-    }
-
-    s.mu.Lock()
-    defer s.mu.Unlock()
-
-    s.messages[msg.ID] = msg
-    return nil
-}
-
-func (s *MemoryStorage) GetUserMessages(ctx context.Context, userID int64, limit int, offset int) ([]*models.Message, error) {
-    s.mu.RLock()
-    defer s.mu.RUnlock()
-
-    var messages []*models.Message
-    for _, msg := range s.messages {
-        if msg.UserID == userID {
-            messages = append(messages, msg)
-        }
-    }
-
-    // Sort messages by creation time (newest first)
-    sort.Slice(messages, func(i, j int) bool {
-        return messages[i].CreatedAt.After(messages[j].CreatedAt)
-    })
-
-    // Apply limit and offset
-    if offset >= len(messages) {
-        return []*models.Message{}, nil
-    }
-
-    end := offset + limit
-    if end > len(messages) {
-        end = len(messages)
-    }
-
-    return messages[offset:end], nil
 }

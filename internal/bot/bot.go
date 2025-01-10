@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/google/uuid"
 	"github.com/xaenox/memo-bot/internal/classifier"
 	"github.com/xaenox/memo-bot/internal/models"
 	"github.com/xaenox/memo-bot/internal/storage"
@@ -16,7 +15,7 @@ import (
 
 type MessageSender interface {
 	SendMessage(chatID int64, text string) (tgbotapi.Message, error)
-	DeleteMessage(chatID int64, messageID int) error 
+	DeleteMessage(chatID int64, messageID int) error
 	SendReplyMessage(chatID int64, text string, replyToID int) (tgbotapi.Message, error)
 }
 
@@ -122,9 +121,6 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 			zap.Int64("chat_id", message.Chat.ID))
 	}
 
-	// Create a new message ID
-	messageID := uuid.New().String()
-
 	// Get GPT analysis response
 	gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
 
@@ -140,25 +136,6 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		b.logger.Error("Failed to get GPT analysis",
 			zap.Int64("user_id", message.From.ID))
 		b.sendErrorMessage(message.Chat.ID, errMsgClassify)
-		return
-	}
-
-	// Create and save the message
-	msg := &models.Message{
-		ID:        messageID,
-		UserID:    message.From.ID,
-		Content:   content,
-		Category:  gptResponse.Category,
-		Tags:      gptResponse.Keywords,
-		CreatedAt: time.Now(),
-	}
-
-	if err := b.storage.SaveMessage(ctx, msg); err != nil {
-		b.logger.Error("Failed to save message",
-			zap.Error(err),
-			zap.String("message_id", messageID),
-			zap.Int64("user_id", message.From.ID))
-		b.sendErrorMessage(message.Chat.ID, "Sorry, I couldn't save your message. Please try again.")
 		return
 	}
 
@@ -353,49 +330,8 @@ func (b *Bot) handleCommand(ctx context.Context, message *tgbotapi.Message) {
 		b.handleTags(ctx, message)
 	case "categories":
 		b.handleCategories(ctx, message)
-	case "history":
-		b.handleHistory(ctx, message)
 	default:
 		b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
-	}
-}
-
-func (b *Bot) handleHistory(ctx context.Context, message *tgbotapi.Message) {
-	messages, err := b.storage.GetUserMessages(ctx, message.From.ID, 5, 0)
-	if err != nil {
-		b.logger.Error("Failed to get user messages",
-			zap.Error(err),
-			zap.Int64("user_id", message.From.ID))
-		b.sendErrorMessage(message.Chat.ID, errMsgRetrieval)
-		return
-	}
-
-	if len(messages) == 0 {
-		b.sendMessage(message.Chat.ID, "You don't have any messages yet.")
-		return
-	}
-
-	response := "*Your recent messages:*\n\n"
-	for _, msg := range messages {
-		response += fmt.Sprintf("*%s*\n", escapeMarkdown(msg.Category))
-		response += fmt.Sprintf("_%s_\n", escapeMarkdown(msg.Content))
-		if len(msg.Tags) > 0 {
-			tags := make([]string, len(msg.Tags))
-			for i, tag := range msg.Tags {
-				tags[i] = "#" + escapeMarkdown(strings.ReplaceAll(tag, " ", "_"))
-			}
-			response += fmt.Sprintf("Tags: %s\n", strings.Join(tags, " "))
-		}
-		response += "\n"
-	}
-
-	msg := tgbotapi.NewMessage(message.Chat.ID, response)
-	msg.ParseMode = "MarkdownV2"
-	if _, err := b.api.Send(msg); err != nil {
-		b.logger.Error("Failed to send history message",
-			zap.Error(err),
-			zap.Int64("chat_id", message.Chat.ID))
-		b.sendErrorMessage(message.Chat.ID, errMsgGeneral)
 	}
 }
 

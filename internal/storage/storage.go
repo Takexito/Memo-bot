@@ -1,60 +1,51 @@
 package storage
 
 import (
-    "context"
-    "errors"
-    "github.com/xaenox/memo-bot/internal/models"
+	"context"
+	"errors"
+	"github.com/xaenox/memo-bot/internal/models"
 )
 
 var (
-    ErrNotFound      = errors.New("record not found")
-    ErrAlreadyExists = errors.New("record already exists")
-    ErrInvalidInput  = errors.New("invalid input")
-    ErrDatabase      = errors.New("database error")
-    ErrDuplicate     = errors.New("duplicate record")
-    ErrConnection    = errors.New("database connection error")
-    ErrTransaction   = errors.New("transaction error")
-    ErrConstraint    = errors.New("constraint violation")
+	ErrNotFound      = errors.New("record not found")
+	ErrAlreadyExists = errors.New("record already exists")
+	ErrInvalidInput  = errors.New("invalid input")
+	ErrDatabase      = errors.New("database error")
+	ErrDuplicate     = errors.New("duplicate record")
+	ErrConnection    = errors.New("database connection error")
+	ErrTransaction   = errors.New("transaction error")
+	ErrConstraint    = errors.New("constraint violation")
 )
 
 // IsDatabaseError checks if an error is a database-related error
 func IsDatabaseError(err error) bool {
-    return errors.Is(err, ErrDatabase) ||
-           errors.Is(err, ErrConnection) ||
-           errors.Is(err, ErrTransaction) ||
-           errors.Is(err, ErrConstraint)
+	return errors.Is(err, ErrDatabase) ||
+		errors.Is(err, ErrConnection) ||
+		errors.Is(err, ErrTransaction) ||
+		errors.Is(err, ErrConstraint)
 }
 
 // Storage combines all storage interfaces
 type Storage interface {
-    UserStorage
-    MessageStorage
-    ThreadStorage
-    Close() error
+	UserStorage
+	ThreadStorage
+	Close() error
 }
 
 // UserStorage handles user-related operations
 type UserStorage interface {
-    GetUser(ctx context.Context, id int64) (*models.User, error)
-    UpdateUser(ctx context.Context, user *models.User) error
-    AddCategory(ctx context.Context, userID int64, category string) error
-    AddTag(ctx context.Context, userID int64, tag string) error
-    GetUserCategories(ctx context.Context, userID int64) ([]string, error)
-    GetUserTags(ctx context.Context, userID int64) ([]string, error)
-}
-
-// MessageStorage handles message operations
-type MessageStorage interface {
-    SaveMessage(ctx context.Context, msg *models.Message) error
-    GetUserMessages(ctx context.Context, userID int64, limit int, offset int) ([]*models.Message, error)
-    GetMessageByID(ctx context.Context, id string) (*models.Message, error)
-    DeleteMessage(ctx context.Context, id string) error
+	GetUser(ctx context.Context, id int64) (*models.User, error)
+	UpdateUser(ctx context.Context, user *models.User) error
+	AddCategory(ctx context.Context, userID int64, category string) error
+	AddTag(ctx context.Context, userID int64, tag string) error
+	GetUserCategories(ctx context.Context, userID int64) ([]string, error)
+	GetUserTags(ctx context.Context, userID int64) ([]string, error)
 }
 
 // ThreadStorage handles AI assistant thread operations
 type ThreadStorage interface {
-    GetThread(ctx context.Context, userID int64) (*models.Thread, error)
-    SaveThread(ctx context.Context, thread *models.Thread) error
-    UpdateThreadLastUsed(ctx context.Context, userID int64) error
-    DeleteThread(ctx context.Context, userID int64) error
+	GetThread(ctx context.Context, userID int64) (*models.Thread, error)
+	SaveThread(ctx context.Context, thread *models.Thread) error
+	UpdateThreadLastUsed(ctx context.Context, userID int64) error
+	DeleteThread(ctx context.Context, userID int64) error
 }
