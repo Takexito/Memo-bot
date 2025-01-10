@@ -260,6 +260,50 @@ func (c *GPTClassifier) fallbackResponse(content string) GPTResponse {
 	return GPTResponse{
 		Category: "general",
 		Keywords: []string{"unclassified"},
-		Summary:  content,
+		Summary:  "I received your message but I'm having trouble analyzing it right now.",
+		Links:    []string{},
 	}
+}
+
+func (c *GPTClassifier) formatUserResponse(analysis GPTResponse) string {
+	var response strings.Builder
+
+	// Add summary
+	response.WriteString(analysis.Summary)
+	response.WriteString("\n\n")
+
+	// Add category
+	response.WriteString("Category: #")
+	response.WriteString(strings.ToLower(strings.ReplaceAll(analysis.Category, " ", "_")))
+	response.WriteString("\n")
+
+	// Add keywords as hashtags
+	if len(analysis.Keywords) > 0 {
+		response.WriteString("Tags: ")
+		for i, keyword := range analysis.Keywords {
+			response.WriteString("#")
+			response.WriteString(strings.ToLower(strings.ReplaceAll(keyword, " ", "_")))
+			if i < len(analysis.Keywords)-1 {
+				response.WriteString(" ")
+			}
+		}
+		response.WriteString("\n")
+	}
+
+	// Add links if present
+	if len(analysis.Links) > 0 {
+		response.WriteString("\nLinks found:\n")
+		for _, link := range analysis.Links {
+			response.WriteString("• ")
+			response.WriteString(link)
+			response.WriteString("\n")
+		}
+	}
+
+	return response.String()
+}
+
+func (c *GPTClassifier) GetUserResponse(content string, userID int64) string {
+	analysis := c.GetStructuredAnalysis(content, userID)
+	return c.formatUserResponse(analysis)
 }
