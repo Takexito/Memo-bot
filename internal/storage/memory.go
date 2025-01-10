@@ -19,6 +19,7 @@ type MemoryStorage struct {
 	notes       map[int64]models.Note
 	lastID      int64
 	userMeta    map[int64]*UserMetadata
+	threads     map[int64]threadInfo
 }
 
 func NewMemoryStorage() *MemoryStorage {
@@ -26,6 +27,7 @@ func NewMemoryStorage() *MemoryStorage {
 		notes:    make(map[int64]models.Note),
 		lastID:   0,
 		userMeta: make(map[int64]*UserMetadata),
+		threads:  make(map[int64]threadInfo),
 	}
 }
 
