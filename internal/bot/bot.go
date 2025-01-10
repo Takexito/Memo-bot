@@ -109,9 +109,10 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		strings.Join(gptResponse.Keywords, ", "),
 		gptResponse.Summary)
 
-	// Send the formatted response with Markdown
+	// Send the formatted response with Markdown and reply to the original message
 	msg := tgbotapi.NewMessage(message.Chat.ID, response)
 	msg.ParseMode = "Markdown"
+	msg.ReplyToMessageID = message.MessageID
 	if _, err := b.api.Send(msg); err != nil {
 		b.logger.Error("Failed to send response",
 			zap.Error(err),
