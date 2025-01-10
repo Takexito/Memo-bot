@@ -170,6 +170,29 @@ func (b *Bot) handleTags(message *tgbotapi.Message) {
 	b.sendMessage(message.Chat.ID, response)
 }
 
+func (b *Bot) handleCategories(message *tgbotapi.Message) {
+    metadata, err := b.storage.GetUserMetadata(message.From.ID)
+    if err != nil {
+        b.logger.Error("Failed to get user metadata",
+            zap.Error(err),
+            zap.Int64("user_id", message.From.ID))
+        b.sendMessage(message.Chat.ID, "Sorry, failed to retrieve your categories. Please try again later.")
+        return
+    }
+
+    if len(metadata.Categories) == 0 {
+        b.sendMessage(message.Chat.ID, "You don't have any categories yet.")
+        return
+    }
+
+    response := "Your categories:\n"
+    for _, category := range metadata.Categories {
+        response += fmt.Sprintf("📁 %s\n", category)
+    }
+
+    b.sendMessage(message.Chat.ID, response)
+}
+
 func (b *Bot) sendMessage(chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := b.api.Send(msg); err != nil {
