@@ -93,10 +93,10 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		}
 	}
 
-	// Classify the content
-	tags := b.classifier.ClassifyContent(note.Content, message.From.ID)
-	note.Tags = tags
-	
+	// Get GPT analysis response
+	gptResponse := b.classifier.GetStructuredAnalysis(note.Content, message.From.ID)
+	note.Tags = append([]string{strings.ToLower(gptResponse.Category)}, gptResponse.Keywords...)
+
 	if err := b.storage.CreateNote(note); err != nil {
 		b.logger.Error("Failed to store note", zap.Error(err))
 		b.sendMessage(message.Chat.ID, "Sorry, failed to save your note. Please try again later.")
@@ -104,7 +104,10 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	}
 
 	// Format and send the response
-	response := fmt.Sprintf("📝 Note saved with tags: %s", strings.Join(tags, ", "))
+	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
+		gptResponse.Category,
+		strings.Join(gptResponse.Keywords, ", "),
+		gptResponse.Summary)
 
 	// Send the formatted response with Markdown
 	msg := tgbotapi.NewMessage(message.Chat.ID, response)
