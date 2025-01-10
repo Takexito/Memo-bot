@@ -74,6 +74,24 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	// Get GPT analysis response
 	gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
 
+	// Save category and tags to user metadata
+	if err := b.storage.AddUserCategory(message.From.ID, gptResponse.Category); err != nil {
+		b.logger.Error("Failed to save category",
+			zap.Error(err),
+			zap.Int64("user_id", message.From.ID),
+			zap.String("category", gptResponse.Category))
+	}
+
+	// Save each keyword as a tag
+	for _, tag := range gptResponse.Keywords {
+		if err := b.storage.AddUserTag(message.From.ID, tag); err != nil {
+			b.logger.Error("Failed to save tag",
+				zap.Error(err),
+				zap.Int64("user_id", message.From.ID),
+				zap.String("tag", tag))
+		}
+	}
+
 	// Format and send the response
 	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
 		gptResponse.Category,
