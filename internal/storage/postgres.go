@@ -23,6 +23,7 @@ type DatabaseConfig struct {
 
 type PostgresStorage struct {
 	db *sql.DB
+	logger *zap.Logger
 }
 
 func (p *PostgresStorage) GetUserMetadata(userID int64) (*UserMetadata, error) {
@@ -100,7 +101,7 @@ func (p *PostgresStorage) AddUserTag(userID int64, tag string) error {
 	return err
 }
 
-func NewPostgresStorage(config DatabaseConfig) (*PostgresStorage, error) {
+func NewPostgresStorage(config DatabaseConfig, logger *zap.Logger) (*PostgresStorage, error) {
 	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.User, config.Password, config.DBName, config.SSLMode)
 
@@ -114,7 +115,10 @@ func NewPostgresStorage(config DatabaseConfig) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("error connecting to the database: %v", err)
 	}
 
-	storage := &PostgresStorage{db: db}
+	storage := &PostgresStorage{
+		db: db,
+		logger: logger,
+	}
 
 	// Initialize database schema
 	if err := storage.initializeSchema(); err != nil {
