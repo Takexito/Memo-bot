@@ -175,7 +175,7 @@ func (s *MemoryStorage) UpdateThreadLastUsed(ctx context.Context, userID int64) 
 	return ErrNotFound
 }
 
-func (s *MemoryStorage) DeleteThread(userID int64) error {
+func (s *MemoryStorage) DeleteThread(ctx context.Context, userID int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
