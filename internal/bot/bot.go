@@ -49,77 +49,47 @@ func (b *Bot) Start() error {
 }
 
 func (b *Bot) handleMessage(message *tgbotapi.Message) {
-	// Handle commands
-	if message.IsCommand() {
-		switch message.Command() {
-		case "start":
-			b.handleStart(message)
-		case "help":
-			b.handleHelp(message)
-		case "tags":
-			b.handleTags(message)
-		case "categories":
-			b.handleCategories(message)
-		default:
-			b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
-		}
-		return
-	}
+    // Handle commands
+    if message.IsCommand() {
+        switch message.Command() {
+        case "start":
+            b.handleStart(message)
+        case "help":
+            b.handleHelp(message)
+        case "tags":
+            b.handleTags(message)
+        case "categories":
+            b.handleCategories(message)
+        default:
+            b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
+        }
+        return
+    }
 
-	// Process the message content
-	note := &models.Note{
-		UserID:  message.From.ID,
-		Content: message.Text,
-		Type:    models.TextContent,
-	}
+    // Get content from message
+    content := message.Text
+    if message.Caption != "" {
+        content = message.Caption
+    }
 
-	// Handle different types of content
-	switch {
-	case message.Photo != nil:
-		note.Type = models.ImageContent
-		note.FileID = message.Photo[len(message.Photo)-1].FileID
-		if message.Caption != "" {
-			note.Content = message.Caption
-		}
-	case message.Video != nil:
-		note.Type = models.VideoContent
-		note.FileID = message.Video.FileID
-		if message.Caption != "" {
-			note.Content = message.Caption
-		}
-	case message.Document != nil:
-		note.Type = models.DocumentContent
-		note.FileID = message.Document.FileID
-		if message.Caption != "" {
-			note.Content = message.Caption
-		}
-	}
+    // Get GPT analysis response
+    gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
 
-	// Get GPT analysis response
-	gptResponse := b.classifier.GetStructuredAnalysis(note.Content, message.From.ID)
-	note.Tags = append([]string{strings.ToLower(gptResponse.Category)}, gptResponse.Keywords...)
+    // Format and send the response
+    response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
+        gptResponse.Category,
+        strings.Join(gptResponse.Keywords, ", "),
+        gptResponse.Summary)
 
-	if err := b.storage.CreateNote(note); err != nil {
-		b.logger.Error("Failed to store note", zap.Error(err))
-		b.sendMessage(message.Chat.ID, "Sorry, failed to save your note. Please try again later.")
-		return
-	}
-
-	// Format and send the response
-	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
-		gptResponse.Category,
-		strings.Join(gptResponse.Keywords, ", "),
-		gptResponse.Summary)
-
-	// Send the formatted response with Markdown and reply to the original message
-	msg := tgbotapi.NewMessage(message.Chat.ID, response)
-	msg.ParseMode = "Markdown"
-	msg.ReplyToMessageID = message.MessageID
-	if _, err := b.api.Send(msg); err != nil {
-		b.logger.Error("Failed to send response",
-			zap.Error(err),
-			zap.Int64("chat_id", message.Chat.ID))
-	}
+    // Send the formatted response with Markdown and reply to the original message
+    msg := tgbotapi.NewMessage(message.Chat.ID, response)
+    msg.ParseMode = "Markdown"
+    msg.ReplyToMessageID = message.MessageID
+    if _, err := b.api.Send(msg); err != nil {
+        b.logger.Error("Failed to send response",
+            zap.Error(err),
+            zap.Int64("chat_id", message.Chat.ID))
+    }
 }
 
 func (b *Bot) handleStart(message *tgbotapi.Message) {
