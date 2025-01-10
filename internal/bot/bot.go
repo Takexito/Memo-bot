@@ -102,14 +102,21 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		formattedTags[i] = "#" + strings.ReplaceAll(tag, " ", "_")
 	}
 
+	// Escape special characters for Markdown
+	formattedCategory = escapeMarkdown(formattedCategory)
+	formattedSummary := escapeMarkdown(gptResponse.Summary)
+	for i, tag := range formattedTags {
+		formattedTags[i] = escapeMarkdown(tag)
+	}
+
 	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
 		formattedCategory,
 		strings.Join(formattedTags, ", "),
-		gptResponse.Summary)
+		formattedSummary)
 
-	// Send the formatted response with Markdown and reply to the original message
+	// Send the formatted response with MarkdownV2 and reply to the original message
 	msg := tgbotapi.NewMessage(message.Chat.ID, response)
-	msg.ParseMode = "Markdown"
+	msg.ParseMode = "MarkdownV2"
 	msg.ReplyToMessageID = message.MessageID
 	if _, err := b.api.Send(msg); err != nil {
 		b.logger.Error("Failed to send response",
@@ -161,12 +168,15 @@ func (b *Bot) handleTags(message *tgbotapi.Message) {
 		return
 	}
 
-	response := "Your tags:\n"
+	response := "*Your tags:*\n"
 	for _, tag := range metadata.Tags {
-		response += fmt.Sprintf("#%s\n", strings.ReplaceAll(tag, " ", "_"))
+		formattedTag := "#" + strings.ReplaceAll(tag, " ", "_")
+		response += escapeMarkdown(formattedTag) + "\n"
 	}
 
-	b.sendMessage(message.Chat.ID, response)
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	msg.ParseMode = "MarkdownV2"
+	b.api.Send(msg)
 }
 
 func (b *Bot) handleCategories(message *tgbotapi.Message) {
@@ -184,12 +194,25 @@ func (b *Bot) handleCategories(message *tgbotapi.Message) {
 		return
 	}
 
-	response := "Your categories:\n"
+	response := "*Your categories:*\n"
 	for _, category := range metadata.Categories {
-		response += fmt.Sprintf("#%s\n", strings.ReplaceAll(category, " ", "_"))
+		formattedCategory := "#" + strings.ReplaceAll(category, " ", "_")
+		response += escapeMarkdown(formattedCategory) + "\n"
 	}
 
-	b.sendMessage(message.Chat.ID, response)
+	msg := tgbotapi.NewMessage(message.Chat.ID, response)
+	msg.ParseMode = "MarkdownV2"
+	b.api.Send(msg)
+}
+
+// Add this helper function to escape special characters for MarkdownV2
+func escapeMarkdown(text string) string {
+	specialChars := []string{"_", "*", "[", "]", "(", ")", "~", "`", ">", "#", "+", "-", "=", "|", "{", "}", ".", "!"}
+	escaped := text
+	for _, char := range specialChars {
+		escaped = strings.ReplaceAll(escaped, char, "\\"+char)
+	}
+	return escaped
 }
 
 func (b *Bot) sendMessage(chatID int64, text string) {
