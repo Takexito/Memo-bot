@@ -14,6 +14,37 @@ import (
 	"go.uber.org/zap"
 )
 
+type MessageSender interface {
+	SendMessage(chatID int64, text string) (tgbotapi.Message, error)
+	DeleteMessage(chatID int64, messageID int) error 
+	SendReplyMessage(chatID int64, text string, replyToID int) (tgbotapi.Message, error)
+}
+
+type TelegramMessageSender struct {
+	api *tgbotapi.BotAPI
+}
+
+func NewTelegramMessageSender(api *tgbotapi.BotAPI) *TelegramMessageSender {
+	return &TelegramMessageSender{api: api}
+}
+
+func (t *TelegramMessageSender) SendMessage(chatID int64, text string) (tgbotapi.Message, error) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	return t.api.Send(msg)
+}
+
+func (t *TelegramMessageSender) DeleteMessage(chatID int64, messageID int) error {
+	deleteMsg := tgbotapi.NewDeleteMessage(chatID, messageID)
+	_, err := t.api.Request(deleteMsg)
+	return err
+}
+
+func (t *TelegramMessageSender) SendReplyMessage(chatID int64, text string, replyToID int) (tgbotapi.Message, error) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyToMessageID = replyToID
+	return t.api.Send(msg)
+}
+
 const (
 	errMsgGeneral    = "Sorry, something went wrong. Please try again later."
 	errMsgSave       = "Sorry, I couldn't save your message. Please try again."
@@ -24,6 +55,7 @@ const (
 
 type Bot struct {
 	api        *tgbotapi.BotAPI
+	sender     MessageSender
 	storage    storage.Storage
 	classifier *classifier.GPTClassifier
 	logger     *zap.Logger
@@ -35,8 +67,11 @@ func New(token string, storage storage.Storage, classifier *classifier.GPTClassi
 		return nil, fmt.Errorf("failed to create bot: %w", err)
 	}
 
+	sender := NewTelegramMessageSender(api)
+
 	return &Bot{
 		api:        api,
+		sender:     sender,
 		storage:    storage,
 		classifier: classifier,
 		logger:     logger,
@@ -75,11 +110,32 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 		content = message.Caption
 	}
 
+	// Send loading message
+	loadingMsg, err := b.sender.SendReplyMessage(
+		message.Chat.ID,
+		"🤔 Analyzing your message...",
+		message.MessageID,
+	)
+	if err != nil {
+		b.logger.Error("Failed to send loading message",
+			zap.Error(err),
+			zap.Int64("chat_id", message.Chat.ID))
+	}
+
 	// Create a new message ID
 	messageID := uuid.New().String()
 
 	// Get GPT analysis response
 	gptResponse := b.classifier.GetStructuredAnalysis(content, message.From.ID)
+
+	// Delete loading message
+	if err := b.sender.DeleteMessage(message.Chat.ID, loadingMsg.MessageID); err != nil {
+		b.logger.Error("Failed to delete loading message",
+			zap.Error(err),
+			zap.Int64("chat_id", message.Chat.ID),
+			zap.Int("message_id", loadingMsg.MessageID))
+	}
+
 	if gptResponse.Category == "" {
 		b.logger.Error("Failed to get GPT analysis",
 			zap.Int64("user_id", message.From.ID))
