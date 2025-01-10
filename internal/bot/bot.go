@@ -58,6 +58,8 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 			b.handleHelp(message)
 		case "tags":
 			b.handleTags(message)
+		case "categories":
+			b.handleCategories(message)
 		default:
 			b.sendMessage(message.Chat.ID, "Unknown command. Use /help to see available commands.")
 		}
@@ -135,6 +137,7 @@ func (b *Bot) handleHelp(message *tgbotapi.Message) {
 /start - Start the bot
 /help - Show this help message
 /tags - Show your tags
+/categories - Show your categories
 
 You can send:
 - Text messages
