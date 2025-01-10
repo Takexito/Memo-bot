@@ -155,150 +155,150 @@ func (c *GPTClassifier) getOrCreateThread(ctx context.Context, userID int64) (st
 }
 
 func (c *GPTClassifier) GetStructuredAnalysis(content string, userID int64) GPTResponse {
-    ctx := context.Background()
+	ctx := context.Background()
 
-    // Log the initial request
-    c.logger.Info("Starting GPT analysis",
-        zap.Int64("user_id", userID),
-        zap.String("content", content))
+	// Log the initial request
+	c.logger.Info("Starting GPT analysis",
+		zap.Int64("user_id", userID),
+		zap.String("content", content))
 
-    // Create a thread
-    thread, err := c.client.CreateThread(ctx, openai.ThreadRequest{})
-    if err != nil {
-        c.logger.Error("Failed to create thread", 
-            zap.Error(err),
-            zap.Int64("user_id", userID))
-        return c.fallbackResponse(content)
-    }
-    c.logger.Debug("Created thread",
-        zap.String("thread_id", thread.ID),
-        zap.Int64("user_id", userID))
+	// Create a thread
+	thread, err := c.client.CreateThread(ctx, openai.ThreadRequest{})
+	if err != nil {
+		c.logger.Error("Failed to create thread",
+			zap.Error(err),
+			zap.Int64("user_id", userID))
+		return c.fallbackResponse(content)
+	}
+	c.logger.Debug("Created thread",
+		zap.String("thread_id", thread.ID),
+		zap.Int64("user_id", userID))
 
-    // Add a message to the thread
-    message, err := c.client.CreateMessage(ctx, thread.ID, openai.MessageRequest{
-        Role:    "user",
-        Content: content,
-    })
-    if err != nil {
-        c.logger.Error("Failed to create message",
-            zap.Error(err),
-            zap.String("thread_id", thread.ID),
-            zap.Int64("user_id", userID))
-        return c.fallbackResponse(content)
-    }
-    c.logger.Debug("Created message",
-        zap.String("message_id", message.ID),
-        zap.String("thread_id", thread.ID),
-        zap.Int64("user_id", userID))
+	// Add a message to the thread
+	message, err := c.client.CreateMessage(ctx, thread.ID, openai.MessageRequest{
+		Role:    "user",
+		Content: content,
+	})
+	if err != nil {
+		c.logger.Error("Failed to create message",
+			zap.Error(err),
+			zap.String("thread_id", thread.ID),
+			zap.Int64("user_id", userID))
+		return c.fallbackResponse(content)
+	}
+	c.logger.Debug("Created message",
+		zap.String("message_id", message.ID),
+		zap.String("thread_id", thread.ID),
+		zap.Int64("user_id", userID))
 
-    // Run the assistant
-    run, err := c.client.CreateRun(ctx, thread.ID, openai.RunRequest{
-        AssistantID: c.assistantID,
-    })
-    if err != nil {
-        c.logger.Error("Failed to create run",
-            zap.Error(err),
-            zap.String("thread_id", thread.ID),
-            zap.String("assistant_id", c.assistantID),
-            zap.Int64("user_id", userID))
-        return c.fallbackResponse(content)
-    }
-    c.logger.Debug("Created run",
-        zap.String("run_id", run.ID),
-        zap.String("thread_id", thread.ID),
-        zap.Int64("user_id", userID))
+	// Run the assistant
+	run, err := c.client.CreateRun(ctx, thread.ID, openai.RunRequest{
+		AssistantID: c.assistantID,
+	})
+	if err != nil {
+		c.logger.Error("Failed to create run",
+			zap.Error(err),
+			zap.String("thread_id", thread.ID),
+			zap.String("assistant_id", c.assistantID),
+			zap.Int64("user_id", userID))
+		return c.fallbackResponse(content)
+	}
+	c.logger.Debug("Created run",
+		zap.String("run_id", run.ID),
+		zap.String("thread_id", thread.ID),
+		zap.Int64("user_id", userID))
 
-    // Poll for completion
-    startTime := time.Now()
-    for {
-        run, err = c.client.RetrieveRun(ctx, thread.ID, run.ID)
-        if err != nil {
-            c.logger.Error("Failed to retrieve run",
-                zap.Error(err),
-                zap.String("run_id", run.ID),
-                zap.String("thread_id", thread.ID),
-                zap.Int64("user_id", userID))
-            return c.fallbackResponse(content)
-        }
+	// Poll for completion
+	startTime := time.Now()
+	for {
+		run, err = c.client.RetrieveRun(ctx, thread.ID, run.ID)
+		if err != nil {
+			c.logger.Error("Failed to retrieve run",
+				zap.Error(err),
+				zap.String("run_id", run.ID),
+				zap.String("thread_id", thread.ID),
+				zap.Int64("user_id", userID))
+			return c.fallbackResponse(content)
+		}
 
-        if run.Status == "completed" {
-            c.logger.Debug("Run completed",
-                zap.String("run_id", run.ID),
-                zap.Duration("duration", time.Since(startTime)),
-                zap.Int64("user_id", userID))
-            break
-        }
+		if run.Status == "completed" {
+			c.logger.Debug("Run completed",
+				zap.String("run_id", run.ID),
+				zap.Duration("duration", time.Since(startTime)),
+				zap.Int64("user_id", userID))
+			break
+		}
 
-        if run.Status == "failed" || run.Status == "expired" || run.Status == "cancelled" {
-            c.logger.Error("Run failed",
-                zap.String("status", string(run.Status)),
-                zap.String("run_id", run.ID),
-                zap.String("thread_id", thread.ID),
-                zap.Int64("user_id", userID))
-            return c.fallbackResponse(content)
-        }
+		if run.Status == "failed" || run.Status == "expired" || run.Status == "cancelled" {
+			c.logger.Error("Run failed",
+				zap.String("status", string(run.Status)),
+				zap.String("run_id", run.ID),
+				zap.String("thread_id", thread.ID),
+				zap.Int64("user_id", userID))
+			return c.fallbackResponse(content)
+		}
 
-        time.Sleep(500 * time.Millisecond)
-    }
+		time.Sleep(500 * time.Millisecond)
+	}
 
-    // Get the messages
-    messages, err := c.client.ListMessage(ctx, thread.ID, nil, nil, nil, nil, nil)
-    if err != nil {
-        c.logger.Error("Failed to list messages",
-            zap.Error(err),
-            zap.String("thread_id", thread.ID),
-            zap.Int64("user_id", userID))
-        return c.fallbackResponse(content)
-    }
+	// Get the messages
+	messages, err := c.client.ListMessage(ctx, thread.ID, nil, nil, nil, nil, nil)
+	if err != nil {
+		c.logger.Error("Failed to list messages",
+			zap.Error(err),
+			zap.String("thread_id", thread.ID),
+			zap.Int64("user_id", userID))
+		return c.fallbackResponse(content)
+	}
 
-    // Get the last assistant message
-    var lastAssistantMessage string
-    for _, msg := range messages.Messages {
-        if msg.Role == "assistant" {
-            lastAssistantMessage = msg.Content[0].Text.Value
-            c.logger.Debug("Received assistant response",
-                zap.String("message_id", msg.ID),
-                zap.String("thread_id", thread.ID),
-                zap.String("response", lastAssistantMessage),
-                zap.Int64("user_id", userID))
-            break
-        }
-    }
+	// Get the last assistant message
+	var lastAssistantMessage string
+	for _, msg := range messages.Messages {
+		if msg.Role == "assistant" {
+			lastAssistantMessage = msg.Content[0].Text.Value
+			c.logger.Debug("Received assistant response",
+				zap.String("message_id", msg.ID),
+				zap.String("thread_id", thread.ID),
+				zap.String("response", lastAssistantMessage),
+				zap.Int64("user_id", userID))
+			break
+		}
+	}
 
-    if lastAssistantMessage == "" {
-        c.logger.Error("No assistant response found",
-            zap.String("thread_id", thread.ID),
-            zap.Int64("user_id", userID))
-        return c.fallbackResponse(content)
-    }
+	if lastAssistantMessage == "" {
+		c.logger.Error("No assistant response found",
+			zap.String("thread_id", thread.ID),
+			zap.Int64("user_id", userID))
+		return c.fallbackResponse(content)
+	}
 
-    // Parse the response
-    var gptResponse GPTResponse
-    if err := json.Unmarshal([]byte(lastAssistantMessage), &gptResponse); err != nil {
-        c.logger.Error("Failed to parse assistant response",
-            zap.Error(err),
-            zap.String("response", lastAssistantMessage),
-            zap.String("thread_id", thread.ID),
-            zap.Int64("user_id", userID))
-        return c.fallbackResponse(content)
-    }
+	// Parse the response
+	var gptResponse GPTResponse
+	if err := json.Unmarshal([]byte(lastAssistantMessage), &gptResponse); err != nil {
+		c.logger.Error("Failed to parse assistant response",
+			zap.Error(err),
+			zap.String("response", lastAssistantMessage),
+			zap.String("thread_id", thread.ID),
+			zap.Int64("user_id", userID))
+		return c.fallbackResponse(content)
+	}
 
-    c.logger.Info("Successfully completed GPT analysis",
-        zap.Any("response", gptResponse),
-        zap.String("thread_id", thread.ID),
-        zap.Duration("total_duration", time.Since(startTime)),
-        zap.Int64("user_id", userID))
+	c.logger.Info("Successfully completed GPT analysis",
+		zap.Any("response", gptResponse),
+		zap.String("thread_id", thread.ID),
+		zap.Duration("total_duration", time.Since(startTime)),
+		zap.Int64("user_id", userID))
 
-    // Clean up the thread
-    _, err = c.client.DeleteThread(ctx, thread.ID)
-    if err != nil {
-        c.logger.Warn("Failed to delete thread",
-            zap.Error(err),
-            zap.String("thread_id", thread.ID),
-            zap.Int64("user_id", userID))
-    }
+	// Clean up the thread
+	_, err = c.client.DeleteThread(ctx, thread.ID)
+	if err != nil {
+		c.logger.Warn("Failed to delete thread",
+			zap.Error(err),
+			zap.String("thread_id", thread.ID),
+			zap.Int64("user_id", userID))
+	}
 
-    return gptResponse
+	return gptResponse
 }
 
 func (c *GPTClassifier) fallbackResponse(content string) GPTResponse {
