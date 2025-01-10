@@ -1,11 +1,15 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
-	"github.com/lib/pq"
 	"time"
+
+	"github.com/lib/pq"
+	"github.com/xaenox/memo-bot/internal/models"
+	"go.uber.org/zap"
 )
 
 //go:embed migrations.sql
@@ -22,31 +26,33 @@ type DatabaseConfig struct {
 }
 
 type PostgresStorage struct {
-	db *sql.DB
+	db     *sql.DB
 	logger *zap.Logger
 }
 
-func (p *PostgresStorage) GetUserMetadata(userID int64) (*UserMetadata, error) {
+// User-related methods
+func (p *PostgresStorage) GetUser(ctx context.Context, id int64) (*models.User, error) {
 	query := `
 		SELECT user_id, thread_id, categories, tags, last_used_at
 		FROM user_metadata
 		WHERE user_id = $1`
 
-	metadata := &UserMetadata{UserID: userID}
-	err := p.db.QueryRow(query, userID).Scan(
-		&metadata.UserID,
-		&metadata.ThreadID,
-		pq.Array(&metadata.Categories),
-		pq.Array(&metadata.Tags),
-		&metadata.LastUsedAt,
+	user := &models.User{ID: id}
+	err := p.db.QueryRowContext(ctx, query, id).Scan(
+		&user.ID,
+		&user.ThreadID,
+		pq.Array(&user.Categories),
+		pq.Array(&user.Tags),
+		&user.LastUsedAt,
 	)
 
 	if err == sql.ErrNoRows {
-		// Initialize new metadata if not exists
-		metadata.LastUsedAt = time.Now()
-		return metadata, nil
+		return &models.User{
+			ID:         id,
+			LastUsedAt: time.Now(),
+		}, nil
 	}
-	return metadata, err
+	return user, err
 }
 
 func (p *PostgresStorage) UpdateUserMetadata(metadata *UserMetadata) error {
