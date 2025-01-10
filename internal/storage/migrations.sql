@@ -1,6 +1,6 @@
 -- Drop existing objects
-DROP TYPE IF EXISTS content_type CASCADE;
 DROP TABLE IF EXISTS notes CASCADE;
+DROP TYPE IF EXISTS content_type CASCADE;
 
 -- Create fresh schema
 CREATE TYPE content_type AS ENUM (
