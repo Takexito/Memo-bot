@@ -93,9 +93,15 @@ func (b *Bot) handleMessage(message *tgbotapi.Message) {
 	}
 
 	// Format and send the response
+	// Add # to each keyword
+	formattedTags := make([]string, len(gptResponse.Keywords))
+	for i, tag := range gptResponse.Keywords {
+		formattedTags[i] = "#" + tag
+	}
+
 	response := fmt.Sprintf("*Category:* %s\n*Tags:* %s\n\n*Summary:* %s",
 		gptResponse.Category,
-		strings.Join(gptResponse.Keywords, ", "),
+		strings.Join(formattedTags, ", "),
 		gptResponse.Summary)
 
 	// Send the formatted response with Markdown and reply to the original message
