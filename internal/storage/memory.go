@@ -183,6 +183,18 @@ func (s *MemoryStorage) DeleteThread(ctx context.Context, userID int64) error {
 	return nil
 }
 
+func (s *MemoryStorage) GetMessageByID(ctx context.Context, id string) (*models.Message, error) {
+    s.mu.RLock()
+    defer s.mu.RUnlock()
+
+    msg, exists := s.messages[id]
+    if !exists {
+        return nil, ErrNotFound
+    }
+
+    return msg, nil
+}
+
 func (s *MemoryStorage) DeleteMessage(ctx context.Context, id string) error {
     s.mu.Lock()
     defer s.mu.Unlock()
