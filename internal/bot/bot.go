@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -421,7 +422,7 @@ func (b *Bot) handleCommand(ctx context.Context, message *tgbotapi.Message) {
 	case "addcategory":
 		b.handleAddCategory(ctx, message)
 	case "removecategory":
-		b.handleRemoveCategory(ctx, message) 
+		b.handleRemoveCategory(ctx, message)
 	case "maxtags":
 		b.handleMaxTags(ctx, message)
 	default:

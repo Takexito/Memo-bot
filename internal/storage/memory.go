@@ -3,9 +3,10 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/xaenox/memo-bot/internal/models"
 	"sync"
 	"time"
+
+	"github.com/xaenox/memo-bot/internal/models"
 )
 
 type threadInfo struct {
@@ -179,5 +180,34 @@ func (s *MemoryStorage) DeleteThread(ctx context.Context, userID int64) error {
 	defer s.mu.Unlock()
 
 	delete(s.threads, userID)
+	return nil
+}
+
+func (s *MemoryStorage) RemoveCategory(ctx context.Context, userID int64, category string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	user, exists := s.users[userID]
+	if !exists {
+		return ErrNotFound
+	}
+
+	// Find and remove the category
+	for i, c := range user.Categories {
+		if c == category {
+			user.Categories = append(user.Categories[:i], user.Categories[i+1:]...)
+			user.LastUsedAt = time.Now()
+			s.users[userID] = user
+			return nil
+		}
+	}
+
+	return ErrNotFound
+}
+
+func (s *MemoryStorage) UpdateUserMaxTags(ctx context.Context, userID int64, maxTags int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// Stub implementation: Add logic to update max tags if needed
 	return nil
 }
